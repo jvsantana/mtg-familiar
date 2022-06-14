@@ -1,4 +1,28 @@
+/*
+ * Copyright 2017 Adam Feinstein
+ *
+ * This file is part of MTG Familiar.
+ *
+ * MTG Familiar is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * MTG Familiar is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package com.gelakinetic.mtgfam.helpers.database;
+
+import androidx.annotation.NonNull;
+
+import com.gelakinetic.mtgfam.helpers.FamiliarLogger;
+import com.gelakinetic.mtgfam.helpers.util.StringUtils;
 
 /**
  * Extend Exception instead of RuntimeException to force the compiler to whine about lack of try/catch blocks
@@ -15,6 +39,19 @@ public class FamiliarDbException extends Exception {
      */
     public FamiliarDbException(Exception e) {
         mInnerException = e;
+        // Log this exception
+        StringBuilder sb = new StringBuilder();
+        if (null != e) {
+            if (null != e.getMessage()) {
+                sb.append(e.getMessage()).append('\n');
+            } else {
+                sb.append("Exception message was null\n");
+            }
+            sb.append(StringUtils.getStackTrace(e)).append('\n');
+        } else {
+            sb.append("Exception was null\n");
+        }
+        FamiliarLogger.appendToLogFile(sb, "FamiliarDbException");
     }
 
     /**
@@ -22,6 +59,7 @@ public class FamiliarDbException extends Exception {
      *
      * @return An explanation of the exception
      */
+    @NonNull
     @Override
     public String toString() {
         return mInnerException.toString();

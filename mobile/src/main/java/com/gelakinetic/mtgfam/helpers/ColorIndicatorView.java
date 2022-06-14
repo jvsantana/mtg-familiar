@@ -1,3 +1,22 @@
+/*
+ * Copyright 2017 Adam Feinstein
+ *
+ * This file is part of MTG Familiar.
+ *
+ * MTG Familiar is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * MTG Familiar is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package com.gelakinetic.mtgfam.helpers;
 
 import android.content.Context;
@@ -6,22 +25,23 @@ import android.graphics.drawable.ShapeDrawable;
 import android.graphics.drawable.shapes.ArcShape;
 import android.view.View;
 
+import androidx.core.content.ContextCompat;
+
 import com.gelakinetic.mtgfam.R;
 
 import java.util.Arrays;
 
 public class ColorIndicatorView extends View {
-    private ShapeDrawable mBackground = null;
-    private ShapeDrawable mDrawableShapes[] = new ShapeDrawable[5];
-
-    private static final String COLORS_CHARS[] = {"w", "u", "b", "r", "g"};
-    private static final int COLOR_RESOURCES[] = {
+    private static final String[] COLORS_CHARS = {"w", "u", "b", "r", "g"};
+    private static final int[] COLOR_RESOURCES = {
             R.color.icon_white,
             R.color.icon_blue,
             R.color.icon_black,
             R.color.icon_red,
             R.color.icon_green
     };
+    private ShapeDrawable mBackground = null;
+    private final ShapeDrawable[] mDrawableShapes = new ShapeDrawable[5];
 
     /**
      * Necessary constructor
@@ -35,23 +55,23 @@ public class ColorIndicatorView extends View {
     /**
      * Create a color indicator view
      *
-     * @param context The context
-     * @param dimen   The width & height of the view, in pixels
-     * @param border  How thick the border should be, in pixels
-     * @param color   A string of characters representing colors
+     * @param context  The context
+     * @param dimen    The width & height of the view, in pixels
+     * @param border   How thick the border should be, in pixels
+     * @param color    A string of characters representing colors
      * @param manacost The mana cost of this card. If it matches the color, don't make an indicator
      */
     public ColorIndicatorView(Context context, int dimen, int border, String color, String manacost) {
         super(context);
 
         int shapesIndex = 0;
-        int numColors = 0;
+        float numColors = 0;
 
         /* Sanitize strings to check for a match */
         manacost = sanitizeString(manacost);
         color = sanitizeString(color);
 
-        if(color.equals(manacost)) {
+        if (color.equals(manacost)) {
             /* Color matches manacost, don't bother with an indicator */
             return;
         }
@@ -72,7 +92,7 @@ public class ColorIndicatorView extends View {
         for (int i = 0; i < COLORS_CHARS.length; i++) {
             if (color.contains(COLORS_CHARS[i] + "")) {
                 mDrawableShapes[shapesIndex] = new ShapeDrawable(new ArcShape(shapesIndex * (360 / numColors) + 135, (360 / numColors)));
-                mDrawableShapes[shapesIndex].getPaint().setColor(context.getResources().getColor(COLOR_RESOURCES[i]));
+                mDrawableShapes[shapesIndex].getPaint().setColor(ContextCompat.getColor(context, COLOR_RESOURCES[i]));
                 mDrawableShapes[shapesIndex].setBounds(border, border, dimen - border, dimen - border);
                 shapesIndex++;
             }
@@ -80,47 +100,23 @@ public class ColorIndicatorView extends View {
 
         /* Set up a border for the indicator, helps to see white */
         mBackground = new ShapeDrawable(new ArcShape(0, 360));
-        mBackground.getPaint().setColor(context.getResources().getColor(android.R.color.black));
+        mBackground.getPaint().setColor(ContextCompat.getColor(context, android.R.color.black));
         mBackground.setBounds(0, 0, dimen, dimen);
     }
 
     /**
-     * Draw the background, then draw the slices of the indicator
-     *
-     * @param canvas A canvas to draw on
-     */
-    protected void onDraw(Canvas canvas) {
-        if(mBackground != null) {
-            mBackground.draw(canvas);
-        }
-        for (ShapeDrawable shape : mDrawableShapes) {
-            if (shape != null) {
-                shape.draw(canvas);
-            }
-        }
-    }
-
-    /**
-     * Returns whether or not the indicator should be shown
-     * @return true if it should be shown, false otherwise
-     */
-    public boolean shouldInidcatorBeShown() {
-        return mBackground != null;
-    }
-
-    /**
      * Given a color or mana cost string, remove all non-color & duplicate chars
+     *
      * @param str A mana cost or color string
      * @return The sanitized string
      */
-    public static String sanitizeString(String str) {
+    private static String sanitizeString(String str) {
         str = str.toLowerCase();
-        boolean colors[] = new boolean[5];
+        boolean[] colors = new boolean[5];
         Arrays.fill(colors, false);
 
         for (int i = 0; i < str.length(); i++) {
-            switch(str.charAt(i))
-            {
+            switch (str.charAt(i)) {
                 case 'w':
                     colors[0] = true;
                     break;
@@ -142,8 +138,7 @@ public class ColorIndicatorView extends View {
         StringBuilder sb = new StringBuilder(5);
         for (int i = 0; i < colors.length; i++) {
             if (colors[i]) {
-                switch(i)
-                {
+                switch (i) {
                     case 0:
                         sb.append('w');
                         break;
@@ -164,5 +159,30 @@ public class ColorIndicatorView extends View {
         }
 
         return sb.toString();
+    }
+
+    /**
+     * Draw the background, then draw the slices of the indicator
+     *
+     * @param canvas A canvas to draw on
+     */
+    protected void onDraw(Canvas canvas) {
+        if (mBackground != null) {
+            mBackground.draw(canvas);
+        }
+        for (ShapeDrawable shape : mDrawableShapes) {
+            if (shape != null) {
+                shape.draw(canvas);
+            }
+        }
+    }
+
+    /**
+     * Returns whether or not the indicator should be shown
+     *
+     * @return true if it should be shown, false otherwise
+     */
+    public boolean shouldInidcatorBeShown() {
+        return mBackground != null;
     }
 }

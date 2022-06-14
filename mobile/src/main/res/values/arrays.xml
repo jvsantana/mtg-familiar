@@ -1,29 +1,27 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?><!--
+  ~ Copyright 2017 Adam Feinstein
+  ~
+  ~ This file is part of MTG Familiar.
+  ~
+  ~ MTG Familiar is free software: you can redistribute it and/or modify
+  ~ it under the terms of the GNU General Public License as published by
+  ~ the Free Software Foundation, either version 3 of the License, or
+  ~ (at your option) any later version.
+  ~
+  ~ MTG Familiar is distributed in the hope that it will be useful,
+  ~ but WITHOUT ANY WARRANTY; without even the implied warranty of
+  ~ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  ~ GNU General Public License for more details.
+  ~
+  ~ You should have received a copy of the GNU General Public License
+  ~ along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
+  -->
+
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
 
     <!-- Arrays -->
-    <string-array name="supertypes">
-        <item>@string/search_Artifact</item>
-        <item>@string/search_Basic</item>
-        <item>@string/search_Creature</item>
-        <item>@string/search_Enchantment</item>
-        <item>@string/search_Instant</item>
-        <item>@string/search_Land</item>
-        <item>@string/search_Legendary</item>
-        <item>@string/search_Ongoing</item>
-        <item>@string/search_Phenomenon</item>
-        <item>@string/search_Plane</item>
-        <item>@string/search_Planeswalker</item>
-        <item>@string/search_Scheme</item>
-        <item>@string/search_Snow</item>
-        <item>@string/search_Sorcery</item>
-        <item>@string/search_Tribal</item>
-        <item>@string/search_Vanguard</item>
-        <item>@string/search_World</item>
-        <item>@string/search_Conspiracy</item>
-    </string-array>
     <string-array name="logic_spinner">
-        <item>></item>
+        <item>&gt;</item>
         <item>&lt;</item>
         <item>=</item>
     </string-array>
@@ -55,12 +53,15 @@
         <item>13</item>
         <item>14</item>
         <item>15</item>
+        <item>99</item>
+        <item>∞</item>
         <item>*</item>
         <item>1+*</item>
         <item>2+*</item>
         <item>7-*</item>
-        <item>99</item>
         <item>*^2</item>
+        <item>X</item>
+        <item>\?</item>
         <item>0.5</item>
         <item>1.5</item>
         <item>2.5</item>
@@ -101,6 +102,7 @@
         <item>10</item>
         <item>11</item>
         <item>12</item>
+        <item>13</item>
         <item>15</item>
         <item>16</item>
     </string-array>
@@ -110,15 +112,21 @@
         <item>@string/search_No_other_colors</item>
         <item>@string/search_Exact_all_selected_and_no_others</item>
     </string-array>
+    <string-array name="color_identity_spinner">
+        <item>@string/search_May_include_any_colors</item>
+        <item>@string/search_Exact_all_selected_and_no_others</item>
+    </string-array>
     <string-array name="trade_option_entries">
         <item>@string/trader_Low</item>
         <item>@string/trader_Average</item>
         <item>@string/trader_High</item>
+        <item>@string/trader_Market</item>
     </string-array>
     <string-array name="trade_option_values">
         <item>0</item>
         <item>1</item>
         <item>2</item>
+        <item>3</item>
     </string-array>
     <string-array name="set_spinner">
         <item>@string/search_Most_recent_printing</item>
@@ -134,7 +142,6 @@
     <string-array name="text_spinner">
         <item>@string/search_All_words</item>
         <item>@string/search_Any_words</item>
-        <item>@string/search_Exact_phrase</item>
     </string-array>
     <string-array name="update_frequency_days">
         <item>@string/pref_1_day</item>
@@ -162,7 +169,7 @@
         <item>1</item>
         <item>2</item>
     </string-array>
-    <!-- MAKE SURE THAT IF YOU ADD A FRAGMENT HERE, ALSO ADD IT TO THE WIDGET buttonResources and intents -->
+    <!-- MAKE SURE THAT IF YOU ADD A FRAGMENT HERE, ALSO ADD IT TO THE widgetEntries[] in MTGFamiliarAppWidgetProvider.java -->
     <string-array name="default_fragment_array_entries">
         <item>@string/main_card_search</item>
         <item>@string/main_life_counter</item>
@@ -170,11 +177,11 @@
         <item>@string/main_dice</item>
         <item>@string/main_trade</item>
         <item>@string/main_wishlist</item>
+        <item>@string/main_decklist</item>
         <item>@string/main_timer</item>
         <item>@string/main_rules</item>
         <item>@string/main_mojhosto</item>
         <item>@string/main_judges_corner</item>
-        <item>@string/main_profile</item>
     </string-array>
     <string-array name="default_widget_buttons_array_entries">
         <item>@string/main_card_search</item>
@@ -191,6 +198,10 @@
         <item>@string/pref_Japanese</item>
         <item>@string/pref_Russian</item>
         <item>@string/pref_German</item>
+        <item>@string/pref_Portuguese</item>
+        <item>@string/pref_Chinese</item>
+        <item>@string/pref_Chinese_trad</item>
+        <item>@string/pref_Korean</item>
     </string-array>
     <string-array name="card_language_values">
         <item>en</item>
@@ -200,20 +211,33 @@
         <item>jp</item>
         <item>ru</item>
         <item>de</item>
+        <item>pt</item>
+        <item>cn</item>
+        <item>tw</item>
+        <item>ko</item>
+    </string-array>
+    <string-array name="default_search_languages">
+        <item>en</item>
     </string-array>
     <string-array name="pref_language">
         <item>@string/pref_English</item>
+        <item>@string/pref_German</item>
         <item>@string/pref_French</item>
+        <item>@string/pref_Italian</item>
         <item>@string/pref_Spanish</item>
-        <item>@string/pref_Polish</item>
         <item>@string/pref_Portuguese</item>
+        <item>@string/pref_Polish</item>
+        <item>@string/pref_Slovak</item>
     </string-array>
     <string-array name="pref_language_values">
         <item>en</item>
+        <item>de</item>
         <item>fr</item>
+        <item>it</item>
         <item>es</item>
-        <item>pl</item>
         <item>pt</item>
+        <item>pl</item>
+        <item>sk</item>
     </string-array>
 
     <string-array name="life_timer_array_entries">
@@ -235,12 +259,58 @@
         <item>@string/pref_theme_dark</item>
     </string-array>
 
-    <string-array name="wishlist_sort_type">
-        <item>@string/wishlist_type_none</item>
-        <item>@string/wishlist_type_cmc</item>
-        <item>@string/wishlist_type_color</item>
-        <item>@string/wishlist_type_name</item>
-        <item>@string/wishlist_type_price</item>
-        <item>@string/wishlist_type_set</item>
+    <string-array name="decklist_card_headers">
+        <item>@string/decklist_sideboard</item>
+        <item>@string/decklist_creatures</item>
+        <item>@string/decklist_planeswalkers</item>
+        <item>@string/decklist_instants</item>
+        <item>@string/decklist_sorceries</item>
+        <item>@string/decklist_artifacts</item>
+        <item>@string/decklist_enchantments</item>
+        <item>@string/decklist_lands</item>
+        <item>@string/decklist_others</item>
     </string-array>
+
+    <string-array name="card_types_extra">
+        <item>@string/card_type_creature</item>
+        <item>@string/card_type_planeswalker</item>
+        <item>@string/card_type_instant</item>
+        <item>@string/card_type_sorcery</item>
+        <item>@string/card_type_artifact</item>
+        <item>@string/card_type_enchantment</item>
+        <item>@string/card_type_land</item>
+        <item>@string/card_type_conspiracy</item>
+        <item>@string/card_type_phenomenon</item>
+        <item>@string/card_type_plane</item>
+        <item>@string/card_type_scheme</item>
+        <item>@string/card_type_vanguard</item>
+    </string-array>
+
+    <string-array name="pref_tap_symbols">
+        <item>@string/pref_tap_symbol_modern</item>
+        <item>@string/pref_tap_symbol_old</item>
+        <item>@string/pref_tap_symbol_older</item>
+    </string-array>
+
+    <integer-array name="pref_tap_symbols_drawable">
+        <item>@drawable/glyph_tap</item>
+        <item>@drawable/glyph_tap_old</item>
+        <item>@drawable/glyph_tap_older</item>
+    </integer-array>
+
+    <string-array name="pref_white_mana_symbols">
+        <item>@string/pref_white_symbol_modern</item>
+        <item>@string/pref_white_symbol_old</item>
+    </string-array>
+
+    <string-array name="left_right" >
+        <item>@string/pref_right</item>
+        <item>@string/pref_left</item>
+    </string-array>
+
+    <integer-array name="pref_white_mana_symbols_drawable">
+        <item>@drawable/glyph_w</item>
+        <item>@drawable/glyph_w_old</item>
+    </integer-array>
+
 </resources>

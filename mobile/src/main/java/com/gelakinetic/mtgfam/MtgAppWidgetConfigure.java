@@ -1,17 +1,36 @@
+/*
+ * Copyright 2017 Adam Feinstein
+ *
+ * This file is part of MTG Familiar.
+ *
+ * MTG Familiar is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * MTG Familiar is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package com.gelakinetic.mtgfam;
 
 import android.app.Activity;
 import android.app.Dialog;
 import android.appwidget.AppWidgetManager;
 import android.content.ComponentName;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
 
-import com.alertdialogpro.AlertDialogPro;
+import com.afollestad.materialdialogs.MaterialDialog;
 import com.gelakinetic.mtgfam.helpers.MTGFamiliarAppWidgetProvider;
 import com.gelakinetic.mtgfam.helpers.PreferenceAdapter;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -20,50 +39,46 @@ import java.util.Set;
  */
 public class MtgAppWidgetConfigure extends Activity {
 
-    private PreferenceAdapter mPrefAdapter;
     private String[] mLaunchers;
-    private boolean[] mSelected;
+    private Integer[] mSelectedIndices;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        mPrefAdapter = new PreferenceAdapter(this);
 
         /* Get all the widget buttons */
         mLaunchers = getResources().getStringArray(R.array.default_fragment_array_entries);
 
         /* Figure out which ones are already selected */
-        Set<String> defaults = mPrefAdapter.getWidgetButtons();
-        mSelected = new boolean[mLaunchers.length];
-        for (int i = 0; i < mLaunchers.length; i++) {
-            mSelected[i] = defaults.contains(mLaunchers[i]);
+        Set<String> defaults = PreferenceAdapter.getWidgetButtons(this);
+        if (null == defaults) {
+            return;
         }
+        ArrayList<Integer> selectedIndicesTmp = new ArrayList<>();
+        for (int i = 0; i < mLaunchers.length; i++) {
+            if (defaults.contains(mLaunchers[i])) {
+                selectedIndicesTmp.add(i);
+            }
+        }
+        mSelectedIndices = new Integer[selectedIndicesTmp.size()];
+        selectedIndicesTmp.toArray(mSelectedIndices);
 
         /* Build the dialog */
-        AlertDialogPro.Builder adb = new AlertDialogPro.Builder(this);
+        MaterialDialog.Builder adb = new MaterialDialog.Builder(this);
         adb
-                .setMultiChoiceItems(mLaunchers, mSelected, new DialogInterface.OnMultiChoiceClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialogInterface, int i, boolean b) {
-                        mSelected[i] = b;
-                    }
+                .items((CharSequence[]) mLaunchers)
+                .alwaysCallMultiChoiceCallback()
+                .itemsCallbackMultiChoice(mSelectedIndices, (dialog, which, text) -> {
+                    mSelectedIndices = which;
+                    return true;
                 })
-                .setPositiveButton(R.string.dialog_ok, new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialogInterface, int i) {
-                        finishAndUpdateWidget();
-                    }
-                })
-                .setTitle(R.string.pref_widget_mode_title);
+                .positiveText(R.string.dialog_ok)
+                .onPositive((dialog, which) -> finishAndUpdateWidget())
+                .title(R.string.pref_widget_mode_title);
 
-        Dialog d = adb.create();
+        Dialog d = adb.build();
         /* Set the onDismissListener to finish the activity and refresh the widget */
-        d.setOnDismissListener(new DialogInterface.OnDismissListener() {
-            @Override
-            public void onDismiss(DialogInterface dialogInterface) {
-                finishAndUpdateWidget();
-            }
-        });
+        d.setOnDismissListener(dialogInterface -> finishAndUpdateWidget());
         d.show();
     }
 
@@ -73,12 +88,10 @@ public class MtgAppWidgetConfigure extends Activity {
     private void finishAndUpdateWidget() {
         /* Set the preferences from the dialog */
         HashSet<String> selectedButtons = new HashSet<>();
-        for (int i = 0; i < mSelected.length; i++) {
-            if (mSelected[i]) {
-                selectedButtons.add(mLaunchers[i]);
-            }
+        for (Integer mSelectedIndex : mSelectedIndices) {
+            selectedButtons.add(mLaunchers[mSelectedIndex]);
         }
-        mPrefAdapter.setWidgetButtons(selectedButtons);
+        PreferenceAdapter.setWidgetButtons(this, selectedButtons);
 
         /* Get the widget id */
         int mAppWidgetId = AppWidgetManager.INVALID_APPWIDGET_ID;
@@ -89,18 +102,18 @@ public class MtgAppWidgetConfigure extends Activity {
                     AppWidgetManager.INVALID_APPWIDGET_ID);
         }
 
-		/* Tell the widget to update */
+        /* Tell the widget to update */
         Intent intent = new Intent(this, MTGFamiliarAppWidgetProvider.class);
         intent.setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE);
         assert AppWidgetManager.getInstance(getApplication()) != null;
         AppWidgetManager appWidgetManager = AppWidgetManager.getInstance(getApplication());
         assert appWidgetManager != null;
-        int ids[] = appWidgetManager.getAppWidgetIds(
+        int[] ids = appWidgetManager.getAppWidgetIds(
                 new ComponentName(getApplication(), MTGFamiliarAppWidgetProvider.class));
         intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids);
         sendBroadcast(intent);
 
-		/* Return */
+        /* Return */
         Intent resultValue = new Intent();
         resultValue.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, mAppWidgetId);
         setResult(RESULT_OK, resultValue);

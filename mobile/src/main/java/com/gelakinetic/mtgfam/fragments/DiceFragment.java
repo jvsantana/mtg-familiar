@@ -1,7 +1,24 @@
+/*
+ * Copyright 2017 Adam Feinstein
+ *
+ * This file is part of MTG Familiar.
+ *
+ * MTG Familiar is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * MTG Familiar is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package com.gelakinetic.mtgfam.fragments;
 
-import android.app.Dialog;
-import android.content.DialogInterface;
 import android.graphics.PorterDuff;
 import android.os.Bundle;
 import android.util.TypedValue;
@@ -10,18 +27,16 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.AnimationUtils;
-import android.widget.EditText;
-import android.widget.ImageView;
+import android.widget.ImageButton;
 import android.widget.TextSwitcher;
 import android.widget.TextView;
 import android.widget.ViewSwitcher;
 
-import com.alertdialogpro.AlertDialogPro;
-import com.gelakinetic.mtgfam.FamiliarActivity;
-import com.gelakinetic.mtgfam.R;
-import com.gelakinetic.mtgfam.helpers.ToastWrapper;
+import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 
-import org.jetbrains.annotations.NotNull;
+import com.gelakinetic.mtgfam.R;
+import com.gelakinetic.mtgfam.helpers.NumberButtonOnClickListener;
 
 import java.util.Random;
 
@@ -32,9 +47,13 @@ public class DiceFragment extends FamiliarFragment implements ViewSwitcher.ViewF
 
     private Random mRandom;
     private TextSwitcher mDieOutput;
+    private Integer mLastNumber;
 
-    private FamiliarActivity mActivity;
-    private int mLastNumber = -1;
+    /**
+     * Necessary empty constructor
+     */
+    public DiceFragment() {
+    }
 
     /**
      * Set up the TextSwitcher animations, button handlers
@@ -48,179 +67,88 @@ public class DiceFragment extends FamiliarFragment implements ViewSwitcher.ViewF
      * @return A view with a TextSwitcher and a bunch of die buttons
      */
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-
-        try {
-            mActivity = ((FamiliarFragment) getParentFragment()).getFamiliarActivity();
-        } catch (NullPointerException e) {
-            mActivity = getFamiliarActivity();
-        }
-
+    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View myFragmentView = inflater.inflate(R.layout.dice_frag, container, false);
 
         mRandom = new Random();
 
         assert myFragmentView != null;
-        mDieOutput = (TextSwitcher) myFragmentView.findViewById(R.id.die_output);
+        mDieOutput = myFragmentView.findViewById(R.id.die_output);
         mDieOutput.setInAnimation(AnimationUtils.loadAnimation(this.getActivity(), android.R.anim.slide_in_left));
         mDieOutput.setOutAnimation(AnimationUtils.loadAnimation(this.getActivity(), android.R.anim.slide_out_right));
         mDieOutput.setFactory(this);
 
-        ImageView d2 = (ImageView) myFragmentView.findViewById(R.id.d2);
-        ImageView d4 = (ImageView) myFragmentView.findViewById(R.id.d4);
-        ImageView d6 = (ImageView) myFragmentView.findViewById(R.id.d6);
-        ImageView d8 = (ImageView) myFragmentView.findViewById(R.id.d8);
-        ImageView d10 = (ImageView) myFragmentView.findViewById(R.id.d10);
-        ImageView d12 = (ImageView) myFragmentView.findViewById(R.id.d12);
-        ImageView d20 = (ImageView) myFragmentView.findViewById(R.id.d20);
-        ImageView d100 = (ImageView) myFragmentView.findViewById(R.id.d100);
-        ImageView dN = (ImageView) myFragmentView.findViewById(R.id.dN);
-
-        if (d2 != null) {
-            d2.setOnClickListener(new View.OnClickListener() {
-                public void onClick(View view) {
-                    flipCoin();
-                }
-            });
-        }
-        if (d4 != null) {
-            d4.setOnClickListener(new View.OnClickListener() {
-                public void onClick(View view) {
-                    rollDie(4);
-                }
-            });
-        }
-        if (d6 != null) {
-            d6.setOnClickListener(new View.OnClickListener() {
-                public void onClick(View view) {
-                    rollDie(6);
-                }
-            });
-        }
-        if (d8 != null) {
-            d8.setOnClickListener(new View.OnClickListener() {
-                public void onClick(View view) {
-                    rollDie(8);
-                }
-            });
-        }
-        if (d10 != null) {
-            d10.setOnClickListener(new View.OnClickListener() {
-                public void onClick(View view) {
-                    rollDie(10);
-                }
-            });
-        }
-        if (d12 != null) {
-            d12.setOnClickListener(new View.OnClickListener() {
-                public void onClick(View view) {
-                    rollDie(12);
-                }
-            });
-        }
-        if (d20 != null) {
-            d20.setOnClickListener(new View.OnClickListener() {
-                public void onClick(View view) {
-                    rollDie(20);
-                }
-            });
-        }
-        if (d100 != null) {
-            d100.setOnClickListener(new View.OnClickListener() {
-                public void onClick(View view) {
-                    rollDie(100);
-                }
-            });
-        }
-        if (dN != null) {
-            dN.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View view) {
-                    chooseDie();
-                }
-            });
-        }
+        ImageButton d2 = myFragmentView.findViewById(R.id.d2);
+        ImageButton d4 = myFragmentView.findViewById(R.id.d4);
+        ImageButton d6 = myFragmentView.findViewById(R.id.d6);
+        ImageButton d8 = myFragmentView.findViewById(R.id.d8);
+        ImageButton d10 = myFragmentView.findViewById(R.id.d10);
+        ImageButton d12 = myFragmentView.findViewById(R.id.d12);
+        ImageButton d20 = myFragmentView.findViewById(R.id.d20);
+        ImageButton d100 = myFragmentView.findViewById(R.id.d100);
+        ImageButton dN = myFragmentView.findViewById(R.id.dN);
 
         /* Color the die faces */
-        int color = getResources().getColor(R.color.colorPrimary_light);
-        d2.setColorFilter(color, PorterDuff.Mode.MULTIPLY);
-        d4.setColorFilter(color, PorterDuff.Mode.MULTIPLY);
-        d6.setColorFilter(color, PorterDuff.Mode.MULTIPLY);
-        d8.setColorFilter(color, PorterDuff.Mode.MULTIPLY);
-        d10.setColorFilter(color, PorterDuff.Mode.MULTIPLY);
-        d12.setColorFilter(color, PorterDuff.Mode.MULTIPLY);
-        d20.setColorFilter(color, PorterDuff.Mode.MULTIPLY);
-        d100.setColorFilter(color, PorterDuff.Mode.MULTIPLY);
-        dN.setColorFilter(color, PorterDuff.Mode.MULTIPLY);
-        return myFragmentView;
-    }
+        int color = ContextCompat.getColor(requireContext(), R.color.colorPrimary_light);
 
-    /**
-     * Present a fragment that lets the user choose the number of sides on the die
-     */
-    private void chooseDie() {
-        if (!this.isVisible()) {
-            return;
+        if (d2 != null) {
+            d2.setOnClickListener(view -> flipCoin());
+            d2.setColorFilter(color, PorterDuff.Mode.MULTIPLY);
         }
-
-        removeDialog(getFragmentManager());
-
-        final FamiliarDialogFragment newFragment = new FamiliarDialogFragment() {
-            @NotNull
-            @Override
-            public Dialog onCreateDialog(Bundle savedInstanceState) {
-                super.onCreateDialog(savedInstanceState);
-
-                setShowsDialog(true);
-
-                View v = mActivity.getLayoutInflater().inflate(R.layout.number_picker_frag, null, false);
-
-                assert v != null;
-
-                final EditText txtNumber = (EditText) v.findViewById(R.id.numberInput);
-
-                if (mLastNumber > 0) {
-                    txtNumber.setText(String.valueOf(mLastNumber));
+        if (d4 != null) {
+            d4.setOnClickListener(view -> rollDie(4));
+            d4.setColorFilter(color, PorterDuff.Mode.MULTIPLY);
+        }
+        if (d6 != null) {
+            d6.setOnClickListener(view -> rollDie(6));
+            d6.setColorFilter(color, PorterDuff.Mode.MULTIPLY);
+        }
+        if (d8 != null) {
+            d8.setOnClickListener(view -> rollDie(8));
+            d8.setColorFilter(color, PorterDuff.Mode.MULTIPLY);
+        }
+        if (d10 != null) {
+            d10.setOnClickListener(view -> rollDie(10));
+            d10.setColorFilter(color, PorterDuff.Mode.MULTIPLY);
+        }
+        if (d12 != null) {
+            d12.setOnClickListener(view -> rollDie(12));
+            d12.setColorFilter(color, PorterDuff.Mode.MULTIPLY);
+        }
+        if (d20 != null) {
+            d20.setOnClickListener(view -> rollDie(20));
+            d20.setColorFilter(color, PorterDuff.Mode.MULTIPLY);
+        }
+        if (d100 != null) {
+            d100.setOnClickListener(view -> rollDie(100));
+            d100.setColorFilter(color, PorterDuff.Mode.MULTIPLY);
+        }
+        if (dN != null) {
+            dN.setOnClickListener(new NumberButtonOnClickListener(DiceFragment.this) {
+                @Override
+                public void onDialogNumberSet(Integer number) {
+                    mLastNumber = number;
+                    DiceFragment.this.rollDie(number);
                 }
 
-                AlertDialogPro.Builder adb = new AlertDialogPro.Builder(mActivity);
-                adb.setView(v);
-                adb.setTitle(getResources().getString(R.string.dice_choose_sides));
-                adb.setPositiveButton(mActivity.getResources().getString(R.string.dialog_ok),
-                        new DialogInterface.OnClickListener() {
-                            @Override
-                            public void onClick(DialogInterface dialogInterface, int i) {
-                                if (txtNumber.getText() == null || txtNumber.getText().toString().isEmpty()) {
-                                    return;
-                                }
+                @Override
+                public Integer getMaxNumber() {
+                    return Integer.MAX_VALUE;
+                }
 
-                                int num;
+                @Override
+                public Integer getMinNumber() {
+                    return 1;
+                }
 
-                                try {
-                                    num = Integer.parseInt(txtNumber.getText().toString());
-                                } catch (NumberFormatException e) {
-                                    ToastWrapper.makeText(mActivity, getResources().getString(R.string.dice_num_too_large),
-                                            ToastWrapper.LENGTH_SHORT).show();
-                                    return;
-                                }
-
-                                if (num < 1) {
-                                    ToastWrapper.makeText(mActivity, getResources().getString(R.string.dice_postive),
-                                            ToastWrapper.LENGTH_SHORT).show();
-                                } else {
-                                    mLastNumber = num;
-                                    rollDie(num);
-                                }
-
-                                dismiss();
-                            }
-                        }
-                );
-                return adb.create();
-            }
-        };
-
-        newFragment.show(getFragmentManager(), FamiliarActivity.DIALOG_TAG);
+                @Override
+                public Integer getInitialValue() {
+                    return mLastNumber;
+                }
+            });
+            dN.setColorFilter(color, PorterDuff.Mode.MULTIPLY);
+        }
+        return myFragmentView;
     }
 
     /**
@@ -240,13 +168,10 @@ public class DiceFragment extends FamiliarFragment implements ViewSwitcher.ViewF
     private void flipCoin() {
         if (mDieOutput != null) {
             String output;
-            switch (mRandom.nextInt(2)) {
-                case 0:
-                    output = getString(R.string.dice_heads);
-                    break;
-                default:
-                    output = getString(R.string.dice_tails);
-                    break;
+            if (mRandom.nextInt(2) == 0) {
+                output = getString(R.string.dice_heads);
+            } else {
+                output = getString(R.string.dice_tails);
             }
             mDieOutput.setText(output);
         }

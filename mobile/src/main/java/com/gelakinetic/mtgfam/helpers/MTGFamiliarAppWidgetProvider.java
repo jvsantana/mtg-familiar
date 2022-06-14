@@ -1,12 +1,30 @@
+/*
+ * Copyright 2017 Adam Feinstein
+ *
+ * This file is part of MTG Familiar.
+ *
+ * MTG Familiar is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * MTG Familiar is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package com.gelakinetic.mtgfam.helpers;
 
-import android.annotation.TargetApi;
+import android.annotation.SuppressLint;
 import android.app.PendingIntent;
 import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProvider;
 import android.content.Context;
 import android.content.Intent;
-import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.RemoteViews;
@@ -21,37 +39,35 @@ import java.util.Set;
  */
 public abstract class MTGFamiliarAppWidgetProvider extends AppWidgetProvider {
 
-    /* An array of resource IDs for the buttons in the widget. Must stay in order with intents[] below, and
-       R.array.default_fragment_array_entries in arrays.xml */
-    private static final int[] buttonResources = {
-            R.id.widget_search,
-            R.id.widget_life,
-            R.id.widget_mana,
-            R.id.widget_dice,
-            R.id.widget_trade,
-            R.id.widget_wish,
-            R.id.widget_timer,
-            R.id.widget_rules,
-            R.id.widget_mojhosto,
-            R.id.widget_judge,
-            R.id.widget_profile};
+    private static class WidgetEntry {
+        final int buttonResource;
+        final int vectorResourceLight;
+        final int vectorResourceDark;
+        final String intentAction;
 
-    /* An array of String intents for the buttons in the widget. Must stay in order with buttonResources[] above, and
-       R.array.default_fragment_array_entries in arrays.xml */
-    private static final String intents[] = {
-            FamiliarActivity.ACTION_CARD_SEARCH,
-            FamiliarActivity.ACTION_LIFE,
-            FamiliarActivity.ACTION_MANA,
-            FamiliarActivity.ACTION_DICE,
-            FamiliarActivity.ACTION_TRADE,
-            FamiliarActivity.ACTION_WISH,
-            FamiliarActivity.ACTION_ROUND_TIMER,
-            FamiliarActivity.ACTION_RULES,
-            FamiliarActivity.ACTION_MOJHOSTO,
-            FamiliarActivity.ACTION_JUDGE,
-            FamiliarActivity.ACTION_PROFILE};
+        WidgetEntry(int btnRes, int imgResLight, int imgResDark, String intent) {
+            this.buttonResource = btnRes;
+            this.vectorResourceLight = imgResLight;
+            this.vectorResourceDark = imgResDark;
+            this.intentAction = intent;
+        }
+    }
+
+    private static final WidgetEntry[] widgetEntries = {
+            new WidgetEntry(R.id.widget_search, R.drawable.ic_drawer_search_light, R.drawable.ic_drawer_search_dark, FamiliarActivity.ACTION_CARD_SEARCH),
+            new WidgetEntry(R.id.widget_life, R.drawable.ic_drawer_life_light, R.drawable.ic_drawer_life_dark, FamiliarActivity.ACTION_LIFE),
+            new WidgetEntry(R.id.widget_mana, R.drawable.ic_drawer_mana_light, R.drawable.ic_drawer_mana_dark, FamiliarActivity.ACTION_MANA),
+            new WidgetEntry(R.id.widget_dice, R.drawable.ic_drawer_dice_light, R.drawable.ic_drawer_dice_dark, FamiliarActivity.ACTION_DICE),
+            new WidgetEntry(R.id.widget_trade, R.drawable.ic_drawer_trade_light, R.drawable.ic_drawer_trade_dark, FamiliarActivity.ACTION_TRADE),
+            new WidgetEntry(R.id.widget_wish, R.drawable.ic_drawer_wishlist_light, R.drawable.ic_drawer_wishlist_dark, FamiliarActivity.ACTION_WISH),
+            new WidgetEntry(R.id.widget_deck, R.drawable.ic_drawer_deck_light, R.drawable.ic_drawer_deck_dark, FamiliarActivity.ACTION_DECKLIST),
+            new WidgetEntry(R.id.widget_timer, R.drawable.ic_drawer_timer_light, R.drawable.ic_drawer_timer_dark, FamiliarActivity.ACTION_ROUND_TIMER),
+            new WidgetEntry(R.id.widget_rules, R.drawable.ic_drawer_rules_light, R.drawable.ic_drawer_rules_dark, FamiliarActivity.ACTION_RULES),
+            new WidgetEntry(R.id.widget_mojhosto, R.drawable.ic_drawer_mojhosto_light, R.drawable.ic_drawer_mojhosto_dark, FamiliarActivity.ACTION_MOJHOSTO),
+            new WidgetEntry(R.id.widget_judge, R.drawable.ic_drawer_judge_light, R.drawable.ic_drawer_judge_dark, FamiliarActivity.ACTION_JUDGE)
+    };
+
     int mLayout;
-    private int mMaxNumButtons = 100;
 
     protected abstract void setLayout();
 
@@ -69,15 +85,17 @@ public abstract class MTGFamiliarAppWidgetProvider extends AppWidgetProvider {
         /* Perform this loop procedure for each App Widget that belongs to this provider */
         for (int appWidgetId : appWidgetIds) {
 
-			/* Get the layout for the App Widget and attach an on-click listener to the buttons */
+            /* Get the layout for the App Widget and attach an on-click listener to the buttons */
             RemoteViews views = new RemoteViews(context.getPackageName(), mLayout);
 
             bindButtons(context, views);
 
-			/* 100 is a good number to start with when placing a 4x1 widget, since dimensions aren't visible here */
-            showButtonsFromPreferences(context, views, mMaxNumButtons);
+            int maxNumButtons = PreferenceAdapter.getNumWidgetButtons(context, appWidgetId);
 
-			/* Tell the AppWidgetManager to perform an update on the current app widget */
+            /* 100 is a good number to start with when placing a 4x1 widget, since dimensions aren't visible here */
+            showButtonsFromPreferences(context, views, maxNumButtons);
+
+            /* Tell the AppWidgetManager to perform an update on the current app widget */
             appWidgetManager.updateAppWidget(appWidgetId, views);
         }
     }
@@ -90,11 +108,27 @@ public abstract class MTGFamiliarAppWidgetProvider extends AppWidgetProvider {
      */
     private void bindButtons(Context context, RemoteViews views) {
         /* Attach all the intents to all the buttons */
-        for (int i = 0; i < buttonResources.length; i++) {
+        for (WidgetEntry entry : widgetEntries) {
+
+            int vectorResource;
+            if (mLayout == R.layout.mtgfamiliar_appwidget_dark) {
+                vectorResource = entry.vectorResourceDark;
+            } else {
+                vectorResource = entry.vectorResourceLight;
+            }
+
+            /* Draw the vector image */
+            views.setImageViewResource(entry.buttonResource, vectorResource);
+
+            /* Set the listener */
             Intent intentQuick = new Intent(context, FamiliarActivity.class);
-            intentQuick.setAction(intents[i]);
-            PendingIntent pendingIntentQuick = PendingIntent.getActivity(context, 0, intentQuick, 0);
-            views.setOnClickPendingIntent(buttonResources[i], pendingIntentQuick);
+            intentQuick.setAction(entry.intentAction);
+            int pendingIntentFlags = 0;
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                pendingIntentFlags |= PendingIntent.FLAG_MUTABLE;
+            }
+            @SuppressLint("UnspecifiedImmutableFlag") PendingIntent pendingIntentQuick = PendingIntent.getActivity(context, 0, intentQuick, pendingIntentFlags);
+            views.setOnClickPendingIntent(entry.buttonResource, pendingIntentQuick);
         }
     }
 
@@ -107,22 +141,25 @@ public abstract class MTGFamiliarAppWidgetProvider extends AppWidgetProvider {
      */
     private void showButtonsFromPreferences(Context context, RemoteViews views, int maxNumButtons) {
         String[] entries = context.getResources().getStringArray(R.array.default_fragment_array_entries);
-        Set<String> buttons = (new PreferenceAdapter(context)).getWidgetButtons();
+        Set<String> buttons = PreferenceAdapter.getWidgetButtons(context);
+        if (null == buttons) {
+            return;
+        }
 
         int buttonsVisible = 0;
         if (maxNumButtons == 0) {
             maxNumButtons = 1;
         }
 
-		/* Set all the buttons as gone */
-        for (int resource : buttonResources) {
-            views.setViewVisibility(resource, View.GONE);
+        /* Set all the buttons as gone */
+        for (WidgetEntry entry : widgetEntries) {
+            views.setViewVisibility(entry.buttonResource, View.GONE);
         }
 
-		/* Show the buttons selected in preferences */
+        /* Show the buttons selected in preferences */
         for (int i = 0; i < entries.length; i++) {
             if (buttons.contains(entries[i])) {
-                views.setViewVisibility(buttonResources[i], View.VISIBLE);
+                views.setViewVisibility(widgetEntries[i].buttonResource, View.VISIBLE);
                 buttonsVisible++;
                 if (buttonsVisible == maxNumButtons) {
                     return;
@@ -140,7 +177,6 @@ public abstract class MTGFamiliarAppWidgetProvider extends AppWidgetProvider {
      * @param appWidgetId      The appWidgetId of the widget who's size changed.
      * @param newOptions       The new parameters for the widget
      */
-    @TargetApi(Build.VERSION_CODES.JELLY_BEAN)
     @Override
     public void onAppWidgetOptionsChanged(Context context, AppWidgetManager appWidgetManager, int appWidgetId,
                                           Bundle newOptions) {
@@ -149,16 +185,17 @@ public abstract class MTGFamiliarAppWidgetProvider extends AppWidgetProvider {
 
         RemoteViews views = new RemoteViews(context.getPackageName(), mLayout);
 
-        float densityDpi = context.getResources().getDisplayMetrics().densityDpi;
-        float dp = newOptions.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH) / (densityDpi / 160f);
-        mMaxNumButtons = (int) (dp / 32);
+        int maxNumButtons = (int) ((float) newOptions.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH) / 48);
 
-		/* Show the right number of buttons, and rebind the intents.
+        /* Show the right number of buttons, and rebind the intents.
            Buttons wont work if scaled and rotated otherwise */
-        showButtonsFromPreferences(context, views, mMaxNumButtons);
+        showButtonsFromPreferences(context, views, maxNumButtons);
         bindButtons(context, views);
 
-		/* Tell the AppWidgetManager to perform an update on the current app widget */
+        /* Tell the AppWidgetManager to perform an update on the current app widget */
         appWidgetManager.updateAppWidget(appWidgetId, views);
+
+        /* Save the number of buttons visible for this widget id */
+        PreferenceAdapter.setNumWidgetButtons(context, appWidgetId, maxNumButtons);
     }
 }

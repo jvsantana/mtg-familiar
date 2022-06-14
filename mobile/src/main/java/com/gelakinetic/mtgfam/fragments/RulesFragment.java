@@ -1,14 +1,30 @@
+/*
+ * Copyright 2017 Adam Feinstein
+ *
+ * This file is part of MTG Familiar.
+ *
+ * MTG Familiar is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * MTG Familiar is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package com.gelakinetic.mtgfam.fragments;
 
-import android.app.Dialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
-import android.database.sqlite.SQLiteDatabaseCorruptException;
-import android.os.Build;
+import android.database.sqlite.SQLiteException;
 import android.os.Bundle;
 import android.text.SpannableString;
 import android.text.method.LinkMovementMethod;
@@ -19,27 +35,27 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.WindowManager;
 import android.widget.AbsListView;
-import android.widget.AdapterView;
-import android.widget.AdapterView.OnItemClickListener;
 import android.widget.ArrayAdapter;
-import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.SectionIndexer;
 import android.widget.TextView;
 import android.widget.TextView.BufferType;
 
-import com.alertdialogpro.AlertDialogPro;
+import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
+import androidx.fragment.app.FragmentManager;
+
 import com.gelakinetic.mtgfam.FamiliarActivity;
 import com.gelakinetic.mtgfam.R;
+import com.gelakinetic.mtgfam.fragments.dialogs.RulesDialogFragment;
 import com.gelakinetic.mtgfam.helpers.ImageGetterHelper;
-import com.gelakinetic.mtgfam.helpers.ToastWrapper;
+import com.gelakinetic.mtgfam.helpers.PreferenceAdapter;
+import com.gelakinetic.mtgfam.helpers.SnackbarWrapper;
 import com.gelakinetic.mtgfam.helpers.database.CardDbAdapter;
 import com.gelakinetic.mtgfam.helpers.database.DatabaseManager;
 import com.gelakinetic.mtgfam.helpers.database.FamiliarDbException;
-
-import org.jetbrains.annotations.NotNull;
+import com.gelakinetic.mtgfam.helpers.database.FamiliarDbHandle;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -49,10 +65,10 @@ import java.util.regex.Pattern;
 public class RulesFragment extends FamiliarFragment {
 
     /* Keys for information in the bundle */
-    private static final String CATEGORY_KEY = "category";
-    private static final String SUBCATEGORY_KEY = "subcategory";
+    public static final String CATEGORY_KEY = "category";
+    public static final String SUBCATEGORY_KEY = "subcategory";
     private static final String POSITION_KEY = "position";
-    private static final String KEYWORD_KEY = "keyword";
+    public static final String KEYWORD_KEY = "keyword";
     private static final String GLOSSARY_KEY = "glossary";
     private static final String BANNED_KEY = "banned";
     private static final String FORMAT_KEY = "format";
@@ -63,13 +79,10 @@ public class RulesFragment extends FamiliarFragment {
     private static final int NONE = -1;
     private static final int SETS = -2;
 
-    /* Dialog constant */
-    private static final int DIALOG_SEARCH = 1;
-
     /* Current rules information */
     private ArrayList<DisplayItem> mRules;
-    private int mCategory;
-    private int mSubcategory;
+    public int mCategory;
+    public int mSubcategory;
 
     /* Regular expression patterns */
     private Pattern mUnderscorePattern;
@@ -78,6 +91,12 @@ public class RulesFragment extends FamiliarFragment {
     private Pattern mKeywordPattern;
     private Pattern mHyperlinkPattern;
     private Pattern mLinkPattern;
+
+    /**
+     * Necessary empty constructor
+     */
+    public RulesFragment() {
+    }
 
     /**
      * @param inflater           The LayoutInflater object that can be used to inflate any views in the fragment,
@@ -89,18 +108,15 @@ public class RulesFragment extends FamiliarFragment {
      * @return The view to be shown
      */
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         String keyword;
         final String format;
 
-		/* Open a database connection */
-        SQLiteDatabase database = DatabaseManager.getInstance(getActivity(), false).openDatabase(false);
-
-		/* Inflate the view */
+        /* Inflate the view */
         View myFragmentView = inflater.inflate(R.layout.result_list_frag, container, false);
         assert myFragmentView != null;
 
-		/* Get arguments to display a rules section, or use defaults */
+        /* Get arguments to display a rules section, or use defaults */
         Bundle extras = getArguments();
         int position;
         boolean isGlossary;
@@ -123,41 +139,49 @@ public class RulesFragment extends FamiliarFragment {
             isBanned = extras.getBoolean(BANNED_KEY, false);
         }
 
-        ListView list = (ListView) myFragmentView.findViewById(R.id.result_list);
-        mRules = new ArrayList<>();
-        boolean isClickable;
-        Cursor cursor;
+        ListView list = myFragmentView.findViewById(R.id.result_list);
 
-        Cursor setsCursor;
-        setsCursor = null;
-
-		/* Sub-optimal, but KitKat is silly */
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            list.setOnScrollListener(new ListView.OnScrollListener() {
-
-                @Override
-                public void onScrollStateChanged(AbsListView absListView, int scrollState) {
-                    switch (scrollState) {
-                        case AbsListView.OnScrollListener.SCROLL_STATE_IDLE:
-                            absListView.setFastScrollAlwaysVisible(false);
-                            break;
-                        case AbsListView.OnScrollListener.SCROLL_STATE_FLING:
-                            absListView.setFastScrollAlwaysVisible(true);
-                            break;
-                        default:
-                            break;
-                    }
-                }
-
-                @Override
-                public void onScroll(AbsListView absListView, int i, int i2, int i3) {
-
-                }
-            });
+        /* Set which side the fast scroll is shown on */
+        if (getString(R.string.pref_right).equals(PreferenceAdapter.getFastScrollSidePref(getContext()))) {
+            list.setVerticalScrollbarPosition(View.SCROLLBAR_POSITION_RIGHT);
+        } else {
+            list.setVerticalScrollbarPosition(View.SCROLLBAR_POSITION_LEFT);
         }
 
-		/* Populate the cursor with information from the database */
+        mRules = new ArrayList<>();
+        boolean isClickable;
+
+        /* Sub-optimal, but KitKat is silly */
+        list.setOnScrollListener(new ListView.OnScrollListener() {
+
+            @Override
+            public void onScrollStateChanged(AbsListView absListView, int scrollState) {
+                switch (scrollState) {
+                    case AbsListView.OnScrollListener.SCROLL_STATE_IDLE:
+                        absListView.setFastScrollAlwaysVisible(false);
+                        break;
+                    case AbsListView.OnScrollListener.SCROLL_STATE_FLING:
+                        absListView.setFastScrollAlwaysVisible(true);
+                        break;
+                    default:
+                        break;
+                }
+            }
+
+            @Override
+            public void onScroll(AbsListView absListView, int i, int i2, int i3) {
+
+            }
+        });
+
+        /* Populate the cursor with information from the database */
+        Cursor cursor = null;
+        Cursor setsCursor = null;
+        FamiliarDbHandle handle = new FamiliarDbHandle();
         try {
+            /* Open a database connection */
+            SQLiteDatabase database = DatabaseManager.openDatabase(getActivity(), false, handle);
+
             if (isGlossary) {
                 cursor = CardDbAdapter.getGlossaryTerms(database);
                 isClickable = false;
@@ -165,7 +189,7 @@ public class RulesFragment extends FamiliarFragment {
                 cursor = CardDbAdapter.getBannedCards(database, format);
                 setsCursor = CardDbAdapter.getLegalSets(database, format);
                 isClickable = false;
-            } else if (isBanned && format == null) {
+            } else if (isBanned) {
                 cursor = CardDbAdapter.fetchAllFormats(database);
                 isClickable = true;
             } else if (keyword == null) {
@@ -175,62 +199,48 @@ public class RulesFragment extends FamiliarFragment {
                 cursor = CardDbAdapter.getRulesByKeyword(keyword, mCategory, mSubcategory, database);
                 isClickable = false;
             }
-        } catch (FamiliarDbException e) {
-            DatabaseManager.getInstance(getActivity(), false).closeDatabase(false);
-            handleFamiliarDbException(true);
-            return myFragmentView;
-        }
 
-		/* Add DisplayItems to mRules */
-        if (setsCursor != null) {
-            try {
+            /* Add DisplayItems to mRules */
+            if (setsCursor != null) {
                 if (setsCursor.getCount() > 0) {
                     setsCursor.moveToFirst();
                     mRules.add(new BannedItem(
                             format,
                             SETS,
-                            setsCursor.getString(setsCursor.getColumnIndex(CardDbAdapter.KEY_LEGAL_SETS)), false));
+                            CardDbAdapter.getStringFromCursor(setsCursor, CardDbAdapter.KEY_LEGAL_SETS), false));
                 }
-                setsCursor.close();
-            } catch (SQLiteDatabaseCorruptException e) {
-                DatabaseManager.getInstance(getActivity(), false).closeDatabase(false);
-                handleFamiliarDbException(true);
-                return null;
+                if (cursor.getCount() == 0) { // Adapter will not be set when cursor has count 0
+                    int listItemResource = R.layout.rules_list_detail_item;
+                    RulesListAdapter adapter = new RulesListAdapter(getActivity(), listItemResource, mRules);
+                    list.setAdapter(adapter);
+                }
             }
-            if (cursor.getCount() == 0) { // Adapter will not be set when cursor has count 0
-                int listItemResource = R.layout.rules_list_detail_item;
-                RulesListAdapter adapter = new RulesListAdapter(getActivity(), listItemResource, mRules);
-                list.setAdapter(adapter);
-            }
-        }
-        if (cursor != null) {
-            try {
+            if (cursor != null) {
                 if (cursor.getCount() > 0) {
                     cursor.moveToFirst();
                     while (!cursor.isAfterLast()) {
                         if (isGlossary) {
                             mRules.add(new GlossaryItem(
-                                    cursor.getString(cursor.getColumnIndex(CardDbAdapter.KEY_TERM)),
-                                    cursor.getString(cursor.getColumnIndex(CardDbAdapter.KEY_DEFINITION)), false));
+                                    CardDbAdapter.getStringFromCursor(cursor, CardDbAdapter.KEY_TERM),
+                                    CardDbAdapter.getStringFromCursor(cursor, CardDbAdapter.KEY_DEFINITION), false));
                         } else if (isBanned && format != null) {
                             mRules.add(new BannedItem(
                                     format,
-                                    cursor.getInt(cursor.getColumnIndex(CardDbAdapter.KEY_LEGALITY)),
-                                    cursor.getString(cursor.getColumnIndex(CardDbAdapter.KEY_BANNED_LIST)), false));
-                        } else if (isBanned && format == null) {
+                                    CardDbAdapter.getIntFromCursor(cursor, CardDbAdapter.KEY_LEGALITY),
+                                    CardDbAdapter.getStringFromCursor(cursor, CardDbAdapter.KEY_BANNED_LIST), false));
+                        } else if (isBanned) {
                             mRules.add(new BannedItem(
-                                    cursor.getString(cursor.getColumnIndex(CardDbAdapter.KEY_NAME)),
+                                    CardDbAdapter.getStringFromCursor(cursor, CardDbAdapter.KEY_NAME),
                                     NONE, "", true));
                         } else {
                             mRules.add(new RuleItem(
-                                    cursor.getInt(cursor.getColumnIndex(CardDbAdapter.KEY_CATEGORY)),
-                                    cursor.getInt(cursor.getColumnIndex(CardDbAdapter.KEY_SUBCATEGORY)),
-                                    cursor.getString(cursor.getColumnIndex(CardDbAdapter.KEY_ENTRY)),
-                                    cursor.getString(cursor.getColumnIndex(CardDbAdapter.KEY_RULE_TEXT))));
+                                    CardDbAdapter.getIntFromCursor(cursor, CardDbAdapter.KEY_CATEGORY),
+                                    CardDbAdapter.getIntFromCursor(cursor, CardDbAdapter.KEY_SUBCATEGORY),
+                                    CardDbAdapter.getStringFromCursor(cursor, CardDbAdapter.KEY_ENTRY),
+                                    CardDbAdapter.getStringFromCursor(cursor, CardDbAdapter.KEY_RULE_TEXT)));
                         }
                         cursor.moveToNext();
                     }
-                    cursor.close();
                     if (!isGlossary && !isBanned && mCategory == -1 && keyword == null) {
                         /* If it's the initial rules page, add a Glossary link to the end*/
                         mRules.add(new GlossaryItem(getString(R.string.rules_glossary), "", true));
@@ -247,70 +257,80 @@ public class RulesFragment extends FamiliarFragment {
 
                     if (isClickable) {
                         /* This only happens for rule mItems with no subcategory, so the cast, should be safe */
-                        list.setOnItemClickListener(new OnItemClickListener() {
-                            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                                DisplayItem item = mRules.get(position);
-                                Bundle args = new Bundle();
-                                if (item instanceof RuleItem) {
-                                    args.putInt(CATEGORY_KEY, ((RuleItem) item).mCategory);
-                                    args.putInt(SUBCATEGORY_KEY, ((RuleItem) item).mSubcategory);
-                                } else if (item instanceof GlossaryItem) {
-                                    args.putBoolean(GLOSSARY_KEY, true);
-                                } else if (item instanceof BannedItem) {
-                                    args.putBoolean(BANNED_KEY, true);
-                                    if (isBanned && format == null) {
-                                        args.putString(FORMAT_KEY, item.getHeader());
-                                    }
+                        list.setOnItemClickListener((parent, view, position12, id) -> {
+                            DisplayItem item = mRules.get(position12);
+                            Bundle args = new Bundle();
+                            if (item instanceof RuleItem) {
+                                args.putInt(CATEGORY_KEY, ((RuleItem) item).mCategory);
+                                args.putInt(SUBCATEGORY_KEY, ((RuleItem) item).mSubcategory);
+                            } else if (item instanceof GlossaryItem) {
+                                args.putBoolean(GLOSSARY_KEY, true);
+                            } else if (item instanceof BannedItem) {
+                                args.putBoolean(BANNED_KEY, true);
+                                if (isBanned) {
+                                    args.putString(FORMAT_KEY, item.getHeader());
                                 }
-                                RulesFragment frag = new RulesFragment();
-                                startNewFragment(frag, args);
                             }
+                            RulesFragment frag = new RulesFragment();
+                            startNewFragment(frag, args);
                         });
                     }
-                    list.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
-                        @Override
-                        public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
-                            DisplayItem item = mRules.get(position);
-                            if (item instanceof RuleItem) {
-                                // Gets a handle to the clipboard service.
-                                ClipboardManager clipboard = (ClipboardManager)
-                                        getActivity().getSystemService(Context.CLIPBOARD_SERVICE);
+                    list.setOnItemLongClickListener((parent, view, position1, id) -> {
+                        DisplayItem item = mRules.get(position1);
+                        if (item instanceof RuleItem) {
+                            // Gets a handle to the clipboard service.
+                            ClipboardManager clipboard = (ClipboardManager)
+                                    requireActivity().getSystemService(Context.CLIPBOARD_SERVICE);
+                            if (null != clipboard) {
                                 // Creates a new text clip to put on the clipboard
                                 ClipData clip = ClipData.newPlainText(getString(R.string.rules_copy_tag), item.getHeader() + ": " + item.getText());
                                 // Set the clipboard's primary clip.
                                 clipboard.setPrimaryClip(clip);
                                 // Alert the user
-                                ToastWrapper.makeText(getActivity(), R.string.rules_coppied, ToastWrapper.LENGTH_SHORT).show();
+                                SnackbarWrapper.makeAndShowText(getActivity(), R.string.rules_coppied, SnackbarWrapper.LENGTH_SHORT);
                             }
-                            return true;
                         }
+                        return true;
                     });
                 } else {
-					/* Cursor had a size of 0, boring */
-                    cursor.close();
+                    /* Cursor had a size of 0, boring */
                     if (!isBanned) {
-                        ToastWrapper.makeText(getActivity(), R.string.rules_no_results_toast, ToastWrapper.LENGTH_SHORT).show();
-                        getFragmentManager().popBackStack();
+                        SnackbarWrapper.makeAndShowText(getActivity(), R.string.rules_no_results_toast, SnackbarWrapper.LENGTH_SHORT);
+                        FragmentManager fm = requireFragmentManager();
+                        if (!fm.isStateSaved()) {
+                            fm.popBackStack();
+                        }
                     }
                 }
-            } catch (SQLiteDatabaseCorruptException e) {
-                DatabaseManager.getInstance(getActivity(), false).closeDatabase(false);
-                handleFamiliarDbException(true);
-                return null;
+            } else {
+                if (!isBanned) { /* Cursor is null. weird. */
+                    SnackbarWrapper.makeAndShowText(getActivity(), R.string.rules_no_results_toast, SnackbarWrapper.LENGTH_SHORT);
+                    FragmentManager fm = requireFragmentManager();
+                    if (!fm.isStateSaved()) {
+                        fm.popBackStack();
+                    }
+                }
             }
-        } else {
-            if (!isBanned) { /* Cursor is null. weird. */
-                ToastWrapper.makeText(getActivity(), R.string.rules_no_results_toast, ToastWrapper.LENGTH_SHORT).show();
-                getFragmentManager().popBackStack();
+
+        } catch (SQLiteException | FamiliarDbException e) {
+            handleFamiliarDbException(true);
+            return myFragmentView;
+        } finally {
+            if (cursor != null) {
+                cursor.close();
             }
+            if (setsCursor != null) {
+                setsCursor.close();
+            }
+            DatabaseManager.closeDatabase(getActivity(), handle);
         }
 
         list.setSelection(position);
 
-		/* Explanations for these regular expressions are available upon request. - Alex */
+        /* Explanations for these regular expressions are available upon request. - Alex */
         mUnderscorePattern = Pattern.compile("_(.+?)_");
         mExamplePattern = Pattern.compile("(Example:.+)$");
-        mGlyphPattern = Pattern.compile("\\{([a-zA-Z0-9/]{1,3})\\}");
+        mGlyphPattern = Pattern.compile("\\{([a-zA-Z0-9/]{1,5})\\}");
         if (keyword != null && !keyword.contains("{") && !keyword.contains("}")) {
             mKeywordPattern = Pattern.compile("(" + Pattern.quote(keyword) + ")", Pattern.CASE_INSENSITIVE);
         } else {
@@ -318,26 +338,21 @@ public class RulesFragment extends FamiliarFragment {
         }
         mHyperlinkPattern = Pattern.compile("<(http://)?(www|gatherer|mtgcommander)(.+?)>");
 
-		/*
-		 * Regex breakdown for Adam:
-		 * [1-9]: first character is between 1 and 9
-		 * [0-9]{2}: followed by two characters between 0 and 9 (i.e. a 3-digit number)
-		 * (...)?: maybe followed by the group:
-		 * \\.: period
-		 * ([a-z0-9]{1,3}(-[a-z]{1})?)?: maybe followed by one to three alphanumeric
-		 * characters, which are maybe followed by a hyphen and an alphabetical
-		 * character \\.?: maybe followed by another period
-		 *
-		 * I realize this isn't completely easy to read, but it might at least help
-		 * make some sense of the regex so I'm not just waving my hands and shouting
-		 * "WIZARDS!". I still reserve the right to do that, though. - Alex
-		 */
+        /*
+         * Regex breakdown for Adam:
+         * [1-9]: first character is between 1 and 9
+         * [0-9]{2}: followed by two characters between 0 and 9 (i.e. a 3-digit number)
+         * (...)?: maybe followed by the group:
+         * \\.: period
+         * ([a-z0-9]{1,3}(-[a-z]{1})?)?: maybe followed by one to three alphanumeric
+         * characters, which are maybe followed by a hyphen and an alphabetical
+         * character \\.?: maybe followed by another period
+         *
+         * I realize this isn't completely easy to read, but it might at least help
+         * make some sense of the regex so I'm not just waving my hands and shouting
+         * "WIZARDS!". I still reserve the right to do that, though. - Alex
+         */
         mLinkPattern = Pattern.compile("([1-9][0-9]{2}(\\.([a-z0-9]{1,4}(-[a-z])?)?\\.?)?)");
-
-        if (cursor != null) {
-            cursor.close();
-        }
-        DatabaseManager.getInstance(getActivity(), false).closeDatabase(false);
 
         return myFragmentView;
     }
@@ -346,101 +361,19 @@ public class RulesFragment extends FamiliarFragment {
      * Remove any showing dialogs, and show the requested one
      */
     private void showDialog() throws IllegalStateException {
-		/* DialogFragment.show() will take care of adding the fragment in a transaction. We also want to remove any
-		currently showing dialog, so make our own transaction and take care of that here. */
+        /* DialogFragment.show() will take care of adding the fragment in a transaction. We also want to remove any
+        currently showing dialog, so make our own transaction and take care of that here. */
 
-		/* If the fragment isn't visible (maybe being loaded by the pager), don't show dialogs */
+        /* If the fragment isn't visible (maybe being loaded by the pager), don't show dialogs */
         if (!this.isVisible()) {
             return;
         }
 
-        removeDialog(getFragmentManager());
+        removeDialog(getParentFragmentManager());
 
-		/* Create and show the dialog. */
-        final FamiliarDialogFragment newFragment = new FamiliarDialogFragment() {
-
-            private Bundle searchArgs = null;
-
-            @Override
-            public void onDestroy() {
-                super.onDestroy();
-                if (searchArgs != null) {
-                    RulesFragment frag = new RulesFragment();
-                    startNewFragment(frag, searchArgs);
-                }
-            }
-
-            @NotNull
-            @Override
-            public Dialog onCreateDialog(Bundle savedInstanceState) {
-                searchArgs = null;
-                switch (RulesFragment.DIALOG_SEARCH) {
-                    case DIALOG_SEARCH: {
-						/* Inflate a view to type in the player's name, and show it in an AlertDialog */
-                        View textEntryView = getActivity().getLayoutInflater().inflate(R.layout.alert_dialog_text_entry,
-                                null, false);
-                        assert textEntryView != null;
-                        final EditText nameInput = (EditText) textEntryView.findViewById(R.id.text_entry);
-                        textEntryView.findViewById(R.id.clear_button).setOnClickListener(new View.OnClickListener() {
-                            @Override
-                            public void onClick(View view) {
-                                nameInput.setText("");
-                            }
-                        });
-
-                        String title;
-                        if (mCategory == -1) {
-                            title = getString(R.string.rules_search_all);
-                        } else {
-                            SQLiteDatabase database = DatabaseManager.getInstance(getActivity(), false).openDatabase(false);
-                            try {
-                                title = String.format(getString(R.string.rules_search_cat),
-                                        CardDbAdapter.getCategoryName(mCategory, mSubcategory, database));
-                            } catch (FamiliarDbException e) {
-                                title = String.format(getString(R.string.rules_search_cat),
-                                        getString(R.string.rules_this_cat));
-                            }
-                            DatabaseManager.getInstance(getActivity(), false).closeDatabase(false);
-                        }
-
-                        Dialog dialog = new AlertDialogPro.Builder(getActivity())
-                                .setTitle(title)
-                                .setView(textEntryView)
-                                .setPositiveButton(R.string.dialog_ok, new DialogInterface.OnClickListener() {
-                                    public void onClick(DialogInterface dialog, int whichButton) {
-                                        if (nameInput.getText() == null) {
-                                            dialog.dismiss();
-                                            return;
-                                        }
-                                        String keyword = nameInput.getText().toString();
-                                        if (keyword.length() < 3) {
-                                            ToastWrapper.makeText(getActivity(),
-                                                    R.string.rules_short_key_toast, ToastWrapper.LENGTH_LONG).show();
-                                        } else {
-                                            searchArgs = new Bundle();
-                                            searchArgs.putString(KEYWORD_KEY, keyword);
-                                            searchArgs.putInt(CATEGORY_KEY, mCategory);
-                                            searchArgs.putInt(SUBCATEGORY_KEY, mSubcategory);
-                                        }
-                                    }
-                                })
-                                .setNegativeButton(R.string.dialog_cancel, new DialogInterface.OnClickListener() {
-                                    public void onClick(DialogInterface dialog, int whichButton) {
-                                        dialog.dismiss();
-                                    }
-                                })
-                                .create();
-                        dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE);
-                        return dialog;
-                    }
-                    default: {
-                        savedInstanceState.putInt("id", RulesFragment.DIALOG_SEARCH);
-                        return super.onCreateDialog(savedInstanceState);
-                    }
-                }
-            }
-        };
-        newFragment.show(getFragmentManager(), FamiliarActivity.DIALOG_TAG);
+        /* Create and show the dialog. */
+        RulesDialogFragment newFragment = new RulesDialogFragment();
+        newFragment.show(getParentFragmentManager(), FamiliarActivity.DIALOG_TAG);
     }
 
     /**
@@ -451,14 +384,16 @@ public class RulesFragment extends FamiliarFragment {
      */
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-            case R.id.rules_menu_exit:
-                for (int i = 0; i < getFragmentManager().getBackStackEntryCount(); ++i) {
-                    getFragmentManager().popBackStack();
+        if (item.getItemId() == R.id.rules_menu_exit) {
+            FragmentManager fm = requireFragmentManager();
+            if (!fm.isStateSaved()) {
+                for (int i = 0; i < fm.getBackStackEntryCount(); ++i) {
+                    fm.popBackStack();
                 }
-                return true;
-            default:
-                return super.onOptionsItemSelected(item);
+            }
+            return true;
+        } else {
+            return super.onOptionsItemSelected(item);
         }
     }
 
@@ -489,16 +424,16 @@ public class RulesFragment extends FamiliarFragment {
      * @param shouldLink true if links should be added, false otherwise
      * @return a SpannableString with glyphs and links
      */
-    private SpannableString formatText(String input, boolean shouldLink) {
+    private SpannableString formatText(String input, boolean shouldLink, boolean hasCards) {
         String encodedInput = input;
         encodedInput = mUnderscorePattern.matcher(encodedInput).replaceAll("\\<i\\>$1\\</i\\>");
         encodedInput = mExamplePattern.matcher(encodedInput).replaceAll("\\<i\\>$1\\</i\\>");
         encodedInput = mGlyphPattern.matcher(encodedInput).replaceAll("\\<img src=\"$1\"/\\>");
         if (mKeywordPattern != null) {
             encodedInput = mKeywordPattern.matcher(encodedInput)
-                    .replaceAll("\\<font color=\"" +
-                            String.format("0x%06X", 0xFFFFFF & getResources().getColor(R.color.colorPrimaryDark_light)) +
-                            "\"\\>$1\\</font\\>");
+                    .replaceAll("\\<b\\>\\<u\\>\\<font color=\"" +
+                            String.format("0x%06X", 0xFFFFFF & ContextCompat.getColor(requireContext(), R.color.material_green_800)) +
+                            "\"\\>$1\\</font\\>\\</u\\>\\</b\\>");
         }
         encodedInput = mHyperlinkPattern.matcher(encodedInput).replaceAll("\\<a href=\"http://$2$3\"\\>$2$3\\</a\\>");
         encodedInput = encodedInput.replace("{", "").replace("}", "");
@@ -510,8 +445,9 @@ public class RulesFragment extends FamiliarFragment {
         if (shouldLink) {
             Matcher m = mLinkPattern.matcher(cs);
             while (m.find()) {
-                SQLiteDatabase database = DatabaseManager.getInstance(getActivity(), false).openDatabase(false);
+                FamiliarDbHandle handle = new FamiliarDbHandle();
                 try {
+                    SQLiteDatabase database = DatabaseManager.openDatabase(getActivity(), false, handle);
                     String[] tokens = cs.subSequence(m.start(), m.end()).toString().split("(\\.)");
                     int firstInt = Integer.parseInt(tokens[0]);
                     final int linkCat = firstInt / 100;
@@ -528,8 +464,8 @@ public class RulesFragment extends FamiliarFragment {
                     final int linkPosition = position;
                     result.setSpan(new ClickableSpan() {
                         @Override
-                        public void onClick(View widget) {
-							/* Open a new activity instance*/
+                        public void onClick(@NonNull View widget) {
+                            /* Open a new activity instance*/
                             Bundle args = new Bundle();
                             args.putInt(CATEGORY_KEY, linkCat);
                             args.putInt(SUBCATEGORY_KEY, linkSub);
@@ -539,11 +475,46 @@ public class RulesFragment extends FamiliarFragment {
                         }
                     }, m.start(), m.end(), 0);
                 } catch (Exception e) {
-					/* Eat any exceptions; they'll just cause the link to not appear*/
+                    /* Eat any exceptions; they'll just cause the link to not appear*/
+                } finally {
+                    DatabaseManager.closeDatabase(getActivity(), handle);
                 }
-                DatabaseManager.getInstance(getActivity(), false).closeDatabase(false);
             }
         }
+
+        if (hasCards) {
+            String[] cards = cs.toString().split(Pattern.quote("\n"));
+            int indexEnd = 0;
+            for (String cardName : cards) {
+                int indexStart = result.toString().indexOf(cardName, indexEnd);
+                indexEnd = indexStart + cardName.length();
+                result.setSpan(new ClickableSpan() {
+                    @Override
+                    public void onClick(@NonNull View widget) {
+                        FamiliarDbHandle handle = new FamiliarDbHandle();
+                        try {
+                            SQLiteDatabase database = DatabaseManager.openDatabase(getActivity(), false, handle);
+                            long cardId = CardDbAdapter.fetchIdByName(cardName, database);
+                            Bundle args = new Bundle();
+                            if (cardId > 0) {
+                                args.putLongArray(
+                                        CardViewPagerFragment.CARD_ID_ARRAY,
+                                        new long[]{cardId}
+                                );
+                                args.putInt(CardViewPagerFragment.STARTING_CARD_POSITION, 0);
+                                CardViewPagerFragment cvpFrag = new CardViewPagerFragment();
+                                startNewFragment(cvpFrag, args);
+                            }
+                        } catch (Exception e) {
+                            /* Just eat it */
+                        } finally {
+                            DatabaseManager.closeDatabase(getActivity(), handle);
+                        }
+                    }
+                }, indexStart, indexEnd, 0);
+            }
+        }
+
         return result;
     }
 
@@ -552,7 +523,7 @@ public class RulesFragment extends FamiliarFragment {
      * @param inflater The inflater to use to inflate the menu
      */
     @Override
-    public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
+    public void onCreateOptionsMenu(@NonNull Menu menu, @NonNull MenuInflater inflater) {
         super.onCreateOptionsMenu(menu, inflater);
         inflater.inflate(R.menu.rules_menu, menu);
     }
@@ -560,27 +531,27 @@ public class RulesFragment extends FamiliarFragment {
     /**
      * This is an abstract class which can be displayed with a RulesListAdapter in the fragment
      */
-    private abstract class DisplayItem {
+    private abstract static class DisplayItem {
         /**
          * @return The string text associated with this entry
          */
-        public abstract String getText();
+        protected abstract String getText();
 
         /**
          * @return The string header associated with this entry
          */
-        public abstract String getHeader();
+        protected abstract String getHeader();
 
         /**
          * @return True if clicking this entry opens a sub-fragment, false otherwise
          */
-        public abstract boolean isClickable();
+        protected abstract boolean isClickable();
     }
 
     /**
      * This is a rule to be displayed in the list view
      */
-    private class RuleItem extends DisplayItem {
+    private static class RuleItem extends DisplayItem {
         private final int mCategory;
         private final int mSubcategory;
         private final String mEntry;
@@ -594,7 +565,7 @@ public class RulesFragment extends FamiliarFragment {
          * @param entry       The letter entry of the rule.
          * @param rulesText   The rule. Follow it!
          */
-        public RuleItem(int category, int subcategory, String entry, String rulesText) {
+        RuleItem(int category, int subcategory, String entry, String rulesText) {
             this.mCategory = category;
             this.mSubcategory = subcategory;
             this.mEntry = entry;
@@ -617,11 +588,11 @@ public class RulesFragment extends FamiliarFragment {
          */
         public String getHeader() {
             if (this.mSubcategory == -1) {
-                return String.valueOf(this.mCategory) + ".";
+                return this.mCategory + ".";
             } else if (this.mEntry == null) {
-                return String.valueOf((this.mCategory * 100) + this.mSubcategory) + ".";
+                return ((this.mCategory * 100) + this.mSubcategory) + ".";
             } else {
-                return String.valueOf((this.mCategory * 100 + this.mSubcategory)) + "." + this.mEntry;
+                return (this.mCategory * 100 + this.mSubcategory) + "." + this.mEntry;
             }
         }
 
@@ -639,7 +610,7 @@ public class RulesFragment extends FamiliarFragment {
     /**
      * This is a glossary item to be displayed in the list view
      */
-    private class GlossaryItem extends DisplayItem {
+    private static class GlossaryItem extends DisplayItem {
         private final String mTerm;
         private final String mDefinition;
         private final boolean mClickable;
@@ -652,7 +623,7 @@ public class RulesFragment extends FamiliarFragment {
          * @param clickable  Whether clicking this entry will start a sub-fragment. In practice, just the main glossary
          *                   entry point
          */
-        public GlossaryItem(String term, String definition, boolean clickable) {
+        GlossaryItem(String term, String definition, boolean clickable) {
             this.mTerm = term;
             this.mDefinition = definition;
             this.mClickable = clickable;
@@ -694,33 +665,41 @@ public class RulesFragment extends FamiliarFragment {
          * @param cards     Banned and restricted cards in the format
          * @param clickable Whether clicking on this entry will start a sub-fragment. Main Banned entry point
          */
-        public BannedItem(String format, int legality, String cards, boolean clickable) {
+        BannedItem(String format, int legality, String cards, boolean clickable) {
 
             this.mFormat = format;
-            if (format.equalsIgnoreCase("Commander")) {
-                if (legality == RESTRICTED) {
-                    mLegality = getString(R.string.rules_banned_as_commander);
-                } else if (legality == BANNED) {
-                    mLegality = getString(R.string.rules_banned);
-                } else if (legality == NONE) {
-                    mLegality = "";
-                } else if (legality == SETS) {
-                    mLegality = getString(R.string.rules_legal_sets);
-                } else {
-                    mLegality = "";
+            if (format.equalsIgnoreCase("Commander") ||
+                    format.equalsIgnoreCase("Brawl")) {
+                switch (legality) {
+                    case RESTRICTED:
+                        mLegality = getString(R.string.rules_banned_as_commander);
+                        break;
+                    case BANNED:
+                        mLegality = getString(R.string.card_view_banned);
+                        break;
+                    case SETS:
+                        mLegality = getString(R.string.rules_legal_sets);
+                        break;
+                    case NONE:
+                    default:
+                        mLegality = "";
+                        break;
                 }
             } else {
-                if (legality == BANNED) {
-                    mLegality = getString(R.string.rules_banned);
-                } else if (legality == RESTRICTED) {
-                    mLegality = getString(R.string.rules_restricted);
-
-                } else if (legality == NONE) {
-                    mLegality = "";
-                } else if (legality == SETS) {
-                    mLegality = getString(R.string.rules_legal_sets);
-                } else {
-                    mLegality = "";
+                switch (legality) {
+                    case BANNED:
+                        mLegality = getString(R.string.card_view_banned);
+                        break;
+                    case RESTRICTED:
+                        mLegality = getString(R.string.card_view_restricted);
+                        break;
+                    case SETS:
+                        mLegality = getString(R.string.rules_legal_sets);
+                        break;
+                    case NONE:
+                    default:
+                        mLegality = "";
+                        break;
                 }
             }
             if (cards == null) {
@@ -760,6 +739,13 @@ public class RulesFragment extends FamiliarFragment {
         public boolean isClickable() {
             return this.mClickable;
         }
+
+        /**
+         * @return whether this entry is a list of cards
+         */
+        boolean isListOfCards() {
+            return mLegality.equals(getString(R.string.card_view_banned)) || mLegality.equals(getString(R.string.rules_banned_as_commander)) || mLegality.equals(getString(R.string.card_view_restricted));
+        }
     }
 
     /**
@@ -769,8 +755,8 @@ public class RulesFragment extends FamiliarFragment {
         private final int mLayoutResourceId;
         private final ArrayList<DisplayItem> mItems;
 
-        private Integer mIndices[];
-        private String mAlphabet[];
+        private Integer[] mIndices;
+        private String[] mAlphabet;
 
         /**
          * Constructor
@@ -780,7 +766,7 @@ public class RulesFragment extends FamiliarFragment {
          *                           R.layout.rules_list_item
          * @param items              The DisplayItems to show
          */
-        public RulesListAdapter(Context context, int textViewResourceId, ArrayList<DisplayItem> items) {
+        RulesListAdapter(Context context, int textViewResourceId, ArrayList<DisplayItem> items) {
             super(context, textViewResourceId, items);
 
             this.mLayoutResourceId = textViewResourceId;
@@ -788,18 +774,18 @@ public class RulesFragment extends FamiliarFragment {
 
             boolean isGlossary = true;
             for (DisplayItem item : items) {
-                if (RuleItem.class.isInstance(item) || BannedItem.class.isInstance(item)) {
+                if (item instanceof RuleItem || item instanceof BannedItem) {
                     isGlossary = false;
                     break;
                 }
             }
 
-			/* Enable fast scrolling for the glossary. Add all the first letters of the entries */
+            /* Enable fast scrolling for the glossary. Add all the first letters of the entries */
             if (isGlossary) {
                 LinkedHashSet<Integer> indicesLHS = new LinkedHashSet<>();
                 LinkedHashSet<String> alphabetLHS = new LinkedHashSet<>();
 
-				/* Find the first index for each letter in the alphabet by looking at all the items */
+                /* Find the first index for each letter in the alphabet by looking at all the items */
                 for (int index = 0; index < items.size(); index++) {
                     String letter = items.get(index).getHeader().substring(0, 1).toUpperCase();
                     if (!alphabetLHS.contains(letter)) {
@@ -825,32 +811,35 @@ public class RulesFragment extends FamiliarFragment {
          * @param parent      The parent this view will eventually be attached to
          * @return The view to display
          */
+        @NonNull
         @Override
-        public View getView(int position, View convertView, ViewGroup parent) {
+        public View getView(int position, View convertView, @NonNull ViewGroup parent) {
             View v = convertView;
             if (v == null) {
-                LayoutInflater inf = getActivity().getLayoutInflater();
-                v = inf.inflate(mLayoutResourceId, null);
+                LayoutInflater inf = requireActivity().getLayoutInflater();
+                v = inf.inflate(mLayoutResourceId, parent, false);
             }
             assert v != null;
             DisplayItem data = mItems.get(position);
             if (data != null) {
-                TextView rulesHeader = (TextView) v.findViewById(R.id.rules_item_header);
-                TextView rulesText = (TextView) v.findViewById(R.id.rules_item_text);
+                TextView rulesHeader = v.findViewById(R.id.rules_item_header);
+                TextView rulesText = v.findViewById(R.id.rules_item_text);
 
                 String header = data.getHeader();
                 String text = data.getText();
 
-                rulesHeader.setText(formatText(header, false), BufferType.SPANNABLE);
+                rulesHeader.setText(formatText(header, false, false), BufferType.SPANNABLE);
                 if (text.equals("")) {
                     rulesText.setVisibility(View.GONE);
                 } else {
                     boolean shouldLink = true;
+                    boolean hasCards = false;
                     if (data instanceof BannedItem) {
                         shouldLink = false;
+                        hasCards = ((BannedItem) data).isListOfCards();
                     }
                     rulesText.setVisibility(View.VISIBLE);
-                    rulesText.setText(formatText(text, shouldLink), BufferType.SPANNABLE);
+                    rulesText.setText(formatText(text, shouldLink, hasCards), BufferType.SPANNABLE);
                 }
                 if (!data.isClickable()) {
                     rulesText.setMovementMethod(LinkMovementMethod.getInstance());

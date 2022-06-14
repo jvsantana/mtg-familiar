@@ -1,19 +1,42 @@
+/*
+ * Copyright 2017 Adam Feinstein
+ *
+ * This file is part of MTG Familiar.
+ *
+ * MTG Familiar is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * MTG Familiar is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package com.gelakinetic.mtgfam.helpers;
 
+import android.annotation.SuppressLint;
 import android.app.Notification;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.media.AudioAttributes;
 import android.media.AudioManager;
 import android.media.Ringtone;
 import android.media.RingtoneManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.IBinder;
 import android.speech.tts.TextToSpeech;
-import android.support.v4.app.NotificationCompat;
-import android.support.v4.app.NotificationManagerCompat;
+
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
 
 import com.gelakinetic.mtgfam.FamiliarActivity;
 import com.gelakinetic.mtgfam.R;
@@ -43,24 +66,26 @@ public class RoundTimerBroadcastReceiver extends BroadcastReceiver {
     public void onReceive(final Context context, Intent intent) {
         assert intent.getExtras() != null;
         int type = intent.getExtras().getInt(RoundTimerFragment.ROUND_TIMER_INTENT);
-        PreferenceAdapter preferenceAdapter = new PreferenceAdapter(context);
 
         switch (type) {
             case RoundTimerFragment.TIMER_RING_ALARM:
                 /* Play the notification sound */
-                Uri ringURI = Uri.parse(preferenceAdapter.getTimerSound());
-                Ringtone r = RingtoneManager.getRingtone(context, ringURI);
-                r.play();
+                PlayNotificationSound(context, PreferenceAdapter.getTimerSound(context));
 
-				/* Change the notification to show that the round ended */
-                NotificationCompat.Builder builder = new NotificationCompat.Builder(context);
-                Notification notification = builder
+                /* Change the notification to show that the round ended */
+                NotificationHelper.createChannels(context);
+                NotificationCompat.Builder builder = new NotificationCompat.Builder(context, NotificationHelper.NOTIFICATION_CHANNEL_ROUND_TIMER);
+                int pendingIntentFlags = 0;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    pendingIntentFlags |= PendingIntent.FLAG_MUTABLE;
+                }
+                @SuppressLint("UnspecifiedImmutableFlag") Notification notification = builder
                         .setSmallIcon(R.drawable.notification_icon)
                         .setWhen(System.currentTimeMillis())
                         .setContentTitle(context.getString(R.string.main_timer))
                         .setContentText(context.getString(R.string.timer_ended))
                         .setContentIntent(PendingIntent.getActivity(context, 7, (new Intent(context,
-                                FamiliarActivity.class).setAction(FamiliarActivity.ACTION_ROUND_TIMER)), 0))
+                                FamiliarActivity.class).setAction(FamiliarActivity.ACTION_ROUND_TIMER)), pendingIntentFlags))
                         .build();
                 notification.flags |= Notification.FLAG_AUTO_CANCEL;
 
@@ -68,29 +93,26 @@ public class RoundTimerBroadcastReceiver extends BroadcastReceiver {
                 notificationManager.cancel(RoundTimerFragment.TIMER_NOTIFICATION_ID);
                 notificationManager.notify(RoundTimerFragment.TIMER_NOTIFICATION_ID, notification);
                 break;
+            case RoundTimerFragment.TIMER_2_MIN_WARNING:
+                VerifyPlayNotificationSoundOrTTS(context, PreferenceAdapter.getTwoMinutePref(context), PreferenceAdapter.getUseSoundInsteadOfTTSPref(context)
+                        , PreferenceAdapter.getTimerSound(context), R.string.timer_two_minutes_left);
+
+                break;
             case RoundTimerFragment.TIMER_5_MIN_WARNING:
-                if (preferenceAdapter.getFiveMinutePref()) {
-                    context.startService(new Intent(context, TtsService.class)
-                            .putExtra(TEXT_TO_SPEAK, R.string.timer_five_minutes_left));
-                }
+                VerifyPlayNotificationSoundOrTTS(context, PreferenceAdapter.getFiveMinutePref(context), PreferenceAdapter.getUseSoundInsteadOfTTSPref(context)
+                        , PreferenceAdapter.getTimerSound(context), R.string.timer_five_minutes_left);
                 break;
             case RoundTimerFragment.TIMER_10_MIN_WARNING:
-                if (preferenceAdapter.getTenMinutePref()) {
-                    context.startService(new Intent(context, TtsService.class)
-                            .putExtra(TEXT_TO_SPEAK, R.string.timer_ten_minutes_left));
-                }
+                VerifyPlayNotificationSoundOrTTS(context, PreferenceAdapter.getTenMinutePref(context), PreferenceAdapter.getUseSoundInsteadOfTTSPref(context)
+                        , PreferenceAdapter.getTimerSound(context), R.string.timer_ten_minutes_left);
                 break;
             case RoundTimerFragment.TIMER_15_MIN_WARNING:
-                if (preferenceAdapter.getFifteenMinutePref()) {
-                    context.startService(new Intent(context, TtsService.class)
-                            .putExtra(TEXT_TO_SPEAK, R.string.timer_fifteen_minutes_left));
-                }
+                VerifyPlayNotificationSoundOrTTS(context, PreferenceAdapter.getFifteenMinutePref(context), PreferenceAdapter.getUseSoundInsteadOfTTSPref(context)
+                        , PreferenceAdapter.getTimerSound(context), R.string.timer_fifteen_minutes_left);
                 break;
             case RoundTimerFragment.TIMER_EASTER_EGG:
-                if (preferenceAdapter.getFifteenMinutePref()) {
-                    context.startService(new Intent(context, TtsService.class)
-                            .putExtra(TEXT_TO_SPEAK, R.string.timer_easter_egg));
-                }
+                VerifyPlayNotificationSoundOrTTS(context, PreferenceAdapter.getFifteenMinutePref(context), PreferenceAdapter.getUseSoundInsteadOfTTSPref(context)
+                        , PreferenceAdapter.getTimerSound(context), R.string.timer_easter_egg);
                 break;
         }
     }
@@ -170,16 +192,14 @@ public class RoundTimerBroadcastReceiver extends BroadcastReceiver {
                 int result = mTts.setLanguage(getResources().getConfiguration().locale);
                 if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
                     /* Fall back to ringtone */
-                    Uri ringURI = Uri.parse(new PreferenceAdapter(getApplicationContext()).getTimerSound());
-                    Ringtone r = RingtoneManager.getRingtone(getApplicationContext(), ringURI);
-                    r.play();
+                    PlayNotificationSound(getApplicationContext(), PreferenceAdapter.getTimerSound(getApplicationContext()));
                 } else {
                     /* Request audio focus for playback on the alarm stream */
                     int res = mAudioManager.requestAudioFocus(this, AudioManager.STREAM_ALARM,
                             AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK);
 
                     if (res == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
-                                            /* Do some speaking, on the alarm stream */
+                        /* Do some speaking, on the alarm stream */
                         HashMap<String, String> ttsParams = new HashMap<>();
                         ttsParams.put(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, WARNING_SPEECH);
                         ttsParams.put(TextToSpeech.Engine.KEY_PARAM_STREAM, String.valueOf(AudioManager.STREAM_ALARM));
@@ -187,18 +207,14 @@ public class RoundTimerBroadcastReceiver extends BroadcastReceiver {
                         return; /* if we don't return, the service will stop before speaking */
                     } else {
                         /* Fall back to ringtone */
-                        Uri ringURI = Uri.parse(new PreferenceAdapter(getApplicationContext()).getTimerSound());
-                        Ringtone r = RingtoneManager.getRingtone(getApplicationContext(), ringURI);
-                        r.play();
+                        PlayNotificationSound(getApplicationContext(), PreferenceAdapter.getTimerSound(getApplicationContext()));
                     }
                 }
             } else {
-				/* Fall back to ringtone */
-                Uri ringURI = Uri.parse(new PreferenceAdapter(getApplicationContext()).getTimerSound());
-                Ringtone r = RingtoneManager.getRingtone(getApplicationContext(), ringURI);
-                r.play();
+                /* Fall back to ringtone */
+                PlayNotificationSound(getApplicationContext(), PreferenceAdapter.getTimerSound(getApplicationContext()));
             }
-			/* The ringtone has played, so stop the service */
+            /* The ringtone has played, so stop the service */
             stopSelf();
         }
 
@@ -209,7 +225,7 @@ public class RoundTimerBroadcastReceiver extends BroadcastReceiver {
          */
         @Override
         public void onUtteranceCompleted(String s) {
-			/* The TTS is done, so release audio focus and stop the service */
+            /* The TTS is done, so release audio focus and stop the service */
             mAudioManager.abandonAudioFocus(this);
             stopSelf();
         }
@@ -221,7 +237,48 @@ public class RoundTimerBroadcastReceiver extends BroadcastReceiver {
          */
         @Override
         public void onAudioFocusChange(int focusChange) {
-			/* don't really care */
+            /* don't really care */
         }
     }
+
+    /**
+     * Set a given Ringtone to use the Alarms volume
+     *
+     * @param ringtone The Ringtone to set to use Alarms volume
+     */
+    private static void setRingtoneAlarmStream(Ringtone ringtone) {
+        AudioAttributes aa = ringtone.getAudioAttributes();
+        new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setContentType(aa.getContentType())
+                .setFlags(aa.getFlags())
+                .build();
+        ringtone.setAudioAttributes(aa);
+    }
+
+    private static void PlayNotificationSound(final Context context, String soundURI) {
+        Uri ringURI = Uri.parse(soundURI);
+        Ringtone r = RingtoneManager.getRingtone(context, ringURI);
+        setRingtoneAlarmStream(r);
+        r.play();
+    }
+
+    private void VerifyPlayNotificationSoundOrTTS(final Context context, Boolean playNotification, Boolean useSound, String soundURI, int textID) {
+        if (playNotification) {
+            PlayNotificationSoundOrTTS(context, useSound, soundURI, textID);
+        }
+    }
+
+    private void PlayNotificationSoundOrTTS(final Context context, Boolean useSound, String soundURI, int textID) {
+        try {
+            if (useSound) {
+                PlayNotificationSound(context, soundURI);
+            } else {
+                context.startService(new Intent(context, TtsService.class).putExtra(TEXT_TO_SPEAK, textID));
+            }
+        } catch (IllegalStateException e) {
+            /* Eat it */
+        }
+    }
+
 }

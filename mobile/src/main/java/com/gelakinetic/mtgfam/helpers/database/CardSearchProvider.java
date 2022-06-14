@@ -1,18 +1,18 @@
-/**
- * Copyright 2011 Adam Feinstein
- * <p/>
+/*
+ * Copyright 2017 Adam Feinstein
+ *
  * This file is part of MTG Familiar.
- * <p/>
+ *
  * MTG Familiar is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * <p/>
+ *
  * MTG Familiar is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * <p/>
+ *
  * You should have received a copy of the GNU General Public License
  * along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -24,9 +24,18 @@ import android.content.ContentProvider;
 import android.content.ContentValues;
 import android.content.UriMatcher;
 import android.database.Cursor;
+import android.database.SQLException;
 import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteException;
 import android.net.Uri;
 import android.provider.BaseColumns;
+
+import androidx.annotation.NonNull;
+
+import com.gelakinetic.mtgfam.BuildConfig;
+import com.gelakinetic.mtgfam.helpers.PreferenceAdapter;
+
+import java.util.Set;
 
 /**
  * Provides access to the card database. Used for the search widget
@@ -34,7 +43,7 @@ import android.provider.BaseColumns;
 public class CardSearchProvider extends ContentProvider {
 
     // The Authority
-    public static final String AUTHORITY = "com.gelakinetic.mtgfam.helpers.database.CardSearchProvider";
+    public static final String AUTHORITY = BuildConfig.APPLICATION_ID + ".helpers.database.CardSearchProvider";
 
     // UriMatcher stuff
     private static final int SEARCH_SUGGEST = 0;
@@ -47,7 +56,7 @@ public class CardSearchProvider extends ContentProvider {
         sURIMatcher.addURI(AUTHORITY, SearchManager.SUGGEST_URI_PATH_QUERY + "/*", SEARCH_SUGGEST);
     }
 
-    private SQLiteDatabase mDatabase;
+    private SQLiteDatabase mDatabase = null;
 
     /**
      * In lieu of a constructor
@@ -57,10 +66,12 @@ public class CardSearchProvider extends ContentProvider {
     @Override
     public synchronized boolean onCreate() {
         assert getContext() != null;
-//        DatabaseManager.initializeInstance(new DatabaseHelper(getContext().getApplicationContext()));
-//        mDatabase = DatabaseManager.getInstance(false).openDatabase(false); // TODO when to call closeDatabase(false)?
         /* Don't use the DatabaseManager, since the OS may open and close this one with reckless abandon */
-        mDatabase = (new DatabaseHelper(getContext()).getReadableDatabase());
+        try {
+            mDatabase = (new DatabaseHelper(getContext()).getReadableDatabase());
+        } catch (SQLException e) {
+            mDatabase = null;
+        }
         return true;
     }
 
@@ -82,8 +93,11 @@ public class CardSearchProvider extends ContentProvider {
      * @return a Cursor pointing to the queried data
      */
     @Override
-    public synchronized Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs,
+    public synchronized Cursor query(@NonNull Uri uri, String[] projection, String selection, String[] selectionArgs,
                                      String sortOrder) {
+        if (mDatabase == null) {
+            return null;
+        }
         String query;
         // Use the UriMatcher to see what kind of query we have and format the db query accordingly
         try {
@@ -95,7 +109,10 @@ public class CardSearchProvider extends ContentProvider {
                     }
                     query = selectionArgs[0].toLowerCase();
 
-                    return CardDbAdapter.getCardsByNamePrefix(query, mDatabase);
+                    Set<String> searchLanguages = PreferenceAdapter.getSearchLanguages(getContext());
+                    return CardDbAdapter.getCardsByNamePrefix(query, mDatabase, searchLanguages,
+                            PreferenceAdapter.getHideOnlineOnly(getContext()),
+                            PreferenceAdapter.getHideFunnyCards(getContext()));
                 }
                 case REFRESH_SHORTCUT: {
                     String rowId1 = uri.getLastPathSegment();
@@ -104,11 +121,14 @@ public class CardSearchProvider extends ContentProvider {
 
                     return CardDbAdapter.getCardByRowId(rowId1, columns3, mDatabase);
                 }
-                default:
-                    throw new IllegalArgumentException("Unknown Uri: " + uri);
+                default: {
+                    return null;
+                    //throw new IllegalArgumentException("Unknown Uri: " + uri);
+                }
             }
-        } catch (FamiliarDbException e) {
-            throw new IllegalArgumentException(e.toString());
+        } catch (SQLiteException | FamiliarDbException e) {
+            return null;
+            //throw new IllegalArgumentException(e.toString());
         }
     }
 
@@ -120,7 +140,7 @@ public class CardSearchProvider extends ContentProvider {
      * @return a MIME type string, or null if there is no type.
      */
     @Override
-    public synchronized String getType(Uri uri) {
+    public synchronized String getType(@NonNull Uri uri) {
         switch (sURIMatcher.match(uri)) {
             case SEARCH_SUGGEST:
                 return SearchManager.SUGGEST_MIME_TYPE;
@@ -139,7 +159,7 @@ public class CardSearchProvider extends ContentProvider {
      * @return nothing
      */
     @Override
-    public synchronized Uri insert(Uri uri, ContentValues values) {
+    public synchronized Uri insert(@NonNull Uri uri, ContentValues values) {
         throw new UnsupportedOperationException();
     }
 
@@ -152,7 +172,7 @@ public class CardSearchProvider extends ContentProvider {
      * @return nothing
      */
     @Override
-    public synchronized int delete(Uri uri, String selection, String[] selectionArgs) {
+    public synchronized int delete(@NonNull Uri uri, String selection, String[] selectionArgs) {
         throw new UnsupportedOperationException();
     }
 
@@ -167,7 +187,7 @@ public class CardSearchProvider extends ContentProvider {
      * @return nothing
      */
     @Override
-    public synchronized int update(Uri uri, ContentValues values, String selection, String[] selectionArgs) {
+    public synchronized int update(@NonNull Uri uri, ContentValues values, String selection, String[] selectionArgs) {
         throw new UnsupportedOperationException();
     }
 }

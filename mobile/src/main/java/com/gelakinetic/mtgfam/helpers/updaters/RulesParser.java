@@ -1,11 +1,35 @@
+/*
+ * Copyright 2017 Adam Feinstein
+ *
+ * This file is part of MTG Familiar.
+ *
+ * MTG Familiar is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * MTG Familiar is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package com.gelakinetic.mtgfam.helpers.updaters;
+
+import android.content.Context;
+
+import com.gelakinetic.mtgfam.FamiliarActivity;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.net.MalformedURLException;
-import java.net.URL;
+import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
+import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
@@ -13,7 +37,7 @@ import java.util.Date;
 class RulesParser {
 
     /* URL and delimiting tokens */
-    private static final String SOURCE = "https://sites.google.com/site/mtgfamiliar/rules/MagicCompRules.txt";
+    private static final String SOURCE = "https://github.com/AEFeinstein/Mtgjson2Familiar/raw/main/rules/MagicCompRules.txt";
     @SuppressWarnings("SpellCheckingInspection")
     private static final String RULES_TOKEN = "RULES_VERYLONGSTRINGOFLETTERSUNLIKELYTOBEFOUNDINTHEACTUALRULES";
     @SuppressWarnings("SpellCheckingInspection")
@@ -28,7 +52,6 @@ class RulesParser {
     private final ArrayList<GlossaryItem> mGlossary;
     private InputStream mInputStream;
     private BufferedReader mBufferedReader;
-
 
     /**
      * Default Constructor
@@ -51,34 +74,42 @@ class RulesParser {
      * the file and its date is newer than this.mLastUpdated, true will be returned. Otherwise, it will return false. If
      * true is returned, this.rulesUrl will be populated.
      *
+     * @param context a context to open the HttpInputStream with
      * @return Whether or this the rules need updating.
      */
-    public boolean needsToUpdate() {
-        URL url;
+    public boolean needsToUpdate(Context context, PrintWriter logWriter) {
 
         try {
-            url = new URL(SOURCE);
-            this.mInputStream = url.openStream();
-            this.mBufferedReader = new BufferedReader(new InputStreamReader(mInputStream));
+            this.mInputStream = FamiliarActivity.getHttpInputStream(SOURCE, logWriter, context);
+            if (this.mInputStream == null) {
+                throw new IOException("No Stream");
+            }
+            this.mBufferedReader = new BufferedReader(new InputStreamReader(mInputStream, StandardCharsets.UTF_8));
 
-			/*First line will be the date formatted as YYYY-MM-DD */
+            /*First line will be the date formatted as YYYY-MM-DD */
             String line = this.mBufferedReader.readLine();
             String[] parts = line.split("-");
             Calendar c = Calendar.getInstance();
             c.clear();
             c.set(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
 
+            /* Log the date */
+            if (logWriter != null) {
+                String patchDate = DateFormat.getDateInstance().format(c.getTime());
+                logWriter.write("mCurrentRulesPatchDate: " + patchDate + '\n');
+            }
+
             if (c.getTime().after(this.mLastUpdated)) {
                 return true;
             } else {
-                closeReader();
+                closeReader(logWriter);
                 return false;
             }
-        } catch (MalformedURLException e) {
-            closeReader();
-            return false;
         } catch (IOException e) {
-            closeReader();
+            if (logWriter != null) {
+                e.printStackTrace(logWriter);
+            }
+            closeReader(logWriter);
             return false;
         }
     }
@@ -90,7 +121,7 @@ class RulesParser {
      *
      * @return Whether or not the parsing is successful
      */
-    public boolean parseRules() {
+    public boolean parseRules(PrintWriter logWriter) {
         if (this.mBufferedReader == null) {
             /* This should only be the case if we called parseRules() before needsToUpdate()
              * or if needsToUpdate() returned false */
@@ -162,7 +193,7 @@ class RulesParser {
                     }
                 }
 
-				/* Then move to the next line */
+                /* Then move to the next line */
                 line = mBufferedReader.readLine().trim();
             }
 
@@ -172,7 +203,7 @@ class RulesParser {
                 /* Parse the line */
                 if (line.length() == 0) {
                     if (currentTerm != null) {
-						/* Term is over and we have one; add it to the list and null it */
+                        /* Term is over and we have one; add it to the list and null it */
                         mGlossary.add(currentTerm);
                         currentTerm = null;
                     }
@@ -185,19 +216,22 @@ class RulesParser {
                     }
                 }
 
-				/* Then move to the next line */
+                /* Then move to the next line */
                 line = mBufferedReader.readLine().trim();
             }
             if (currentTerm != null) {
-				/* Document is over but we still have a term; add it to the list */
+                /* Document is over but we still have a term; add it to the list */
                 mGlossary.add(currentTerm);
             }
 
             return true;
         } catch (IOException e) {
+            if (logWriter != null) {
+                e.printStackTrace(logWriter);
+            }
             return false;
         } finally {
-            closeReader();
+            closeReader(logWriter);
         }
     }
 
@@ -229,12 +263,14 @@ class RulesParser {
     /**
      * Convenience method to close input streams
      */
-    private void closeReader() {
+    private void closeReader(PrintWriter logWriter) {
         try {
             this.mInputStream.close();
             this.mBufferedReader.close();
         } catch (IOException e) {
-			/* eat it */
+            if (logWriter != null) {
+                e.printStackTrace(logWriter);
+            }
         }
 
         this.mInputStream = null;
@@ -252,7 +288,7 @@ class RulesParser {
     /**
      * Nested class which encapsulates all necessary information about a rule
      */
-    class RuleItem {
+    static class RuleItem {
         public final int category;
         public final int subcategory;
         public final String entry;
@@ -268,7 +304,7 @@ class RulesParser {
          * @param text        self-explanatory
          * @param position    self-explanatory
          */
-        public RuleItem(int category, int subcategory, String entry, String text, int position) {
+        RuleItem(int category, int subcategory, String entry, String text, int position) {
             this.category = category;
             this.subcategory = subcategory;
             this.entry = entry;
@@ -281,7 +317,7 @@ class RulesParser {
          *
          * @param example self-explanatory
          */
-        public void addExample(String example) {
+        void addExample(String example) {
             this.text += "<br><br>" + example.trim();
         }
     }
@@ -289,7 +325,7 @@ class RulesParser {
     /**
      * Nested class which encapsulates all necessary information about a glossary entry
      */
-    class GlossaryItem {
+    static class GlossaryItem {
         public final String term;
         public String definition;
 
@@ -298,7 +334,7 @@ class RulesParser {
          *
          * @param term The Glossary term
          */
-        public GlossaryItem(String term) {
+        GlossaryItem(String term) {
             this.term = term;
             this.definition = "";
         }
@@ -306,7 +342,7 @@ class RulesParser {
         /**
          * @param line The Glossary Definition
          */
-        public void addDefinitionLine(String line) {
+        void addDefinitionLine(String line) {
             if (this.definition.length() > 0) {
                 this.definition += "<br>";
             }

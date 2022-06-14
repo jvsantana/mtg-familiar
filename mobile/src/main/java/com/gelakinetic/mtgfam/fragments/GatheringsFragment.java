@@ -1,25 +1,23 @@
-/**
+/*
  * Copyright 2012 Jonathan Bettger
- * <p/>
+ *
  * This file is part of MTG Familiar.
- * <p/>
+ *
  * MTG Familiar is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- * <p/>
+ *
  * MTG Familiar is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * <p/>
+ *
  * You should have received a copy of the GNU General Public License
  * along with MTG Familiar.  If not, see <http://www.gnu.org/licenses/>.
  */
 package com.gelakinetic.mtgfam.fragments;
 
-import android.app.Dialog;
-import android.content.DialogInterface;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -27,21 +25,21 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.WindowManager.LayoutParams;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.TextView;
 
-import com.alertdialogpro.AlertDialogPro;
+import androidx.annotation.NonNull;
+
 import com.gelakinetic.mtgfam.FamiliarActivity;
 import com.gelakinetic.mtgfam.R;
-import com.gelakinetic.mtgfam.helpers.ToastWrapper;
+import com.gelakinetic.mtgfam.fragments.dialogs.FamiliarDialogFragment;
+import com.gelakinetic.mtgfam.fragments.dialogs.GatheringsDialogFragment;
+import com.gelakinetic.mtgfam.helpers.SnackbarWrapper;
 import com.gelakinetic.mtgfam.helpers.gatherings.Gathering;
 import com.gelakinetic.mtgfam.helpers.gatherings.GatheringsIO;
 import com.gelakinetic.mtgfam.helpers.gatherings.GatheringsPlayerData;
-
-import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 
@@ -50,25 +48,25 @@ import java.util.ArrayList;
  * for the life counter
  */
 public class GatheringsFragment extends FamiliarFragment {
-    /* Dialog constants */
-    private static final int DIALOG_SAVE_GATHERING = 1;
-    private static final int DIALOG_GATHERING_EXIST = 2;
-    private static final int DIALOG_DELETE_GATHERING = 3;
-    private static final int DIALOG_REMOVE_PLAYER = 4;
-    private static final int DIALOG_LOAD_GATHERING = 5;
 
     /* For saving state during rotations, etc */
     private static final String SAVED_GATHERING_KEY = "savedGathering";
     private static final String SAVED_NAME_KEY = "savedName";
 
     /* Various state variables */
-    private String mProposedGathering;
-    private String mCurrentGatheringName;
-    private int mLargestPlayerNumber;
+    public String mProposedGathering;
+    public String mCurrentGatheringName;
+    public int mLargestPlayerNumber;
 
     /* UI Elements */
-    private LinearLayout mLinearLayout;
-    private Spinner mDisplayModeSpinner;
+    public LinearLayout mLinearLayout;
+    public Spinner mDisplayModeSpinner;
+
+    /**
+     * Necessary empty constructor
+     */
+    public GatheringsFragment() {
+    }
 
     /**
      * When the fragment is rotated, save the currently displaying Gathering and pass it to the new onCreate()
@@ -76,23 +74,23 @@ public class GatheringsFragment extends FamiliarFragment {
      * @param outState Bundle in which to place the saved gathering.
      */
     @Override
-    public void onSaveInstanceState(Bundle outState) {
+    public void onSaveInstanceState(@NonNull Bundle outState) {
         Gathering savedGathering = new Gathering();
 
         savedGathering.mDisplayMode = mDisplayModeSpinner.getSelectedItemPosition();
 
-		/* Pull all the information about players from the linear layout's children */
+        /* Pull all the information about players from the linear layout's children */
         for (int idx = 0; idx < mLinearLayout.getChildCount(); idx++) {
             View player = mLinearLayout.getChildAt(idx);
             assert player != null;
 
-            EditText nameField = ((EditText) player.findViewById(R.id.custom_name));
+            EditText nameField = player.findViewById(R.id.custom_name);
             assert nameField.getText() != null;
             String name = nameField.getText().toString().trim();
 
             int startingLife;
             try {
-                EditText startingLifeField = ((EditText) player.findViewById(R.id.starting_life));
+                EditText startingLifeField = player.findViewById(R.id.starting_life);
                 assert startingLifeField.getText() != null;
                 startingLife = Integer.parseInt(startingLifeField.getText().toString().trim());
             } catch (NumberFormatException e) {
@@ -121,14 +119,14 @@ public class GatheringsFragment extends FamiliarFragment {
      * @return The inflated view
      */
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         mLargestPlayerNumber = 0;
 
-		/* Inflate a view */
+        /* Inflate a view */
         View myFragmentView = inflater.inflate(R.layout.gathering_frag, container, false);
         assert myFragmentView != null;
-        mLinearLayout = (LinearLayout) myFragmentView.findViewById(R.id.gathering_player_list);
-        mDisplayModeSpinner = (Spinner) myFragmentView.findViewById(R.id.gathering_display_mode);
+        mLinearLayout = myFragmentView.findViewById(R.id.gathering_player_list);
+        mDisplayModeSpinner = myFragmentView.findViewById(R.id.gathering_display_mode);
 
         return myFragmentView;
     }
@@ -144,7 +142,7 @@ public class GatheringsFragment extends FamiliarFragment {
         super.onViewStateRestored(savedInstanceState);
 
 
-		/* Add some players */
+        /* Add some players */
         if (savedInstanceState == null) {
             AddPlayerRow(new GatheringsPlayerData(null, 20));
             AddPlayerRow(new GatheringsPlayerData(null, 20));
@@ -154,12 +152,15 @@ public class GatheringsFragment extends FamiliarFragment {
             Gathering gathering = (Gathering) savedInstanceState.getSerializable(SAVED_GATHERING_KEY);
 
             assert gathering != null;
+            if (gathering.mDisplayMode >= mDisplayModeSpinner.getAdapter().getCount()) {
+                gathering.mDisplayMode = 0;
+            }
             mDisplayModeSpinner.setSelection(gathering.mDisplayMode);
             ArrayList<GatheringsPlayerData> players = gathering.mPlayerList;
             for (GatheringsPlayerData player : players) {
                 AddPlayerRow(player);
             }
-            getActivity().supportInvalidateOptionsMenu();
+            requireActivity().invalidateOptionsMenu();
             mCurrentGatheringName = savedInstanceState.getString(SAVED_NAME_KEY);
         }
     }
@@ -170,211 +171,23 @@ public class GatheringsFragment extends FamiliarFragment {
      *
      * @param id the ID of the dialog to show
      */
-    private void showDialog(final int id) throws IllegalStateException {
+    public void showDialog(final int id) throws IllegalStateException {
         /* DialogFragment.show() will take care of adding the fragment in a transaction. We also want to remove any
         currently showing dialog, so make our own transaction and take care of that here. */
 
-		/* If the fragment isn't visible (maybe being loaded by the pager), don't show dialogs */
+        /* If the fragment isn't visible (maybe being loaded by the pager), don't show dialogs */
         if (!this.isVisible()) {
             return;
         }
 
-        removeDialog(getFragmentManager());
+        removeDialog(getParentFragmentManager());
 
-		/* Create and show the dialog. */
-        final FamiliarDialogFragment newFragment = new FamiliarDialogFragment() {
-
-            @NotNull
-            @Override
-            public Dialog onCreateDialog(Bundle savedInstanceState) {
-                super.onCreateDialog(savedInstanceState);
-
-				/* This will be set to false if we are returning a null dialog. It prevents a crash */
-                setShowsDialog(true);
-
-                switch (id) {
-                    case DIALOG_SAVE_GATHERING: {
-                        /* If there are no empty fields, try to save the Gathering. If a gathering with the same
-                            name already exists, prompt the user to overwrite it or not. */
-
-                        if (AreAnyFieldsEmpty()) {
-                            ToastWrapper.makeText(getActivity(), R.string.gathering_empty_field, ToastWrapper.LENGTH_LONG).show();
-                            return DontShowDialog();
-                        }
-
-                        LayoutInflater factory = LayoutInflater.from(this.getActivity());
-                        final View textEntryView = factory.inflate(R.layout.alert_dialog_text_entry,
-                                null, false);
-                        assert textEntryView != null;
-                        final EditText nameInput = (EditText) textEntryView.findViewById(R.id.text_entry);
-                        if (mCurrentGatheringName != null) {
-                            nameInput.append(mCurrentGatheringName);
-                        }
-
-                        textEntryView.findViewById(R.id.clear_button).setOnClickListener(new View.OnClickListener() {
-                            @Override
-                            public void onClick(View view) {
-                                nameInput.setText("");
-                            }
-                        });
-
-                        Dialog dialog = new AlertDialogPro.Builder(this.getActivity())
-                                .setTitle(R.string.gathering_enter_name)
-                                .setView(textEntryView)
-                                .setPositiveButton(R.string.dialog_ok, new DialogInterface.OnClickListener() {
-                                    public void onClick(DialogInterface dialog, int whichButton) {
-                                        assert nameInput.getText() != null;
-                                        String gatheringName = nameInput.getText().toString().trim();
-                                        if (gatheringName.length() <= 0) {
-                                            ToastWrapper.makeText(getActivity(), R.string.gathering_toast_no_name,
-                                                    ToastWrapper.LENGTH_LONG).show();
-                                            return;
-                                        }
-
-                                        ArrayList<String> existingGatheringsFiles =
-                                                GatheringsIO.getGatheringFileList(getActivity().getFilesDir());
-
-                                        boolean existing = false;
-                                        for (String existingGatheringFile : existingGatheringsFiles) {
-                                            String givenName = GatheringsIO.ReadGatheringNameFromXML(
-                                                    existingGatheringFile, getActivity().getFilesDir());
-
-                                            if (gatheringName.equals(givenName)) {
-												/* Show a dialog if the gathering already exists */
-                                                existing = true;
-                                                mProposedGathering = gatheringName;
-                                                showDialog(DIALOG_GATHERING_EXIST);
-                                                break;
-                                            }
-                                        }
-
-                                        if (existingGatheringsFiles.size() <= 0 || !existing) {
-                                            SaveGathering(gatheringName);
-                                        }
-                                    }
-                                })
-                                .setNegativeButton(R.string.dialog_cancel, new DialogInterface.OnClickListener() {
-                                    public void onClick(DialogInterface dialog, int whichButton) {
-                                    }
-                                })
-                                .create();
-                        dialog.getWindow().setSoftInputMode(LayoutParams.SOFT_INPUT_STATE_VISIBLE);
-                        return dialog;
-                    }
-                    case DIALOG_GATHERING_EXIST: {
-						/* The user tried to save, and the gathering already exists. Prompt to overwrite */
-                        return new AlertDialogPro.Builder(this.getActivity())
-                                .setTitle(R.string.gathering_dialog_overwrite_title)
-                                .setMessage(R.string.gathering_dialog_overwrite_text)
-                                .setPositiveButton(R.string.dialog_yes, new DialogInterface.OnClickListener() {
-                                    public void onClick(DialogInterface dialog, int whichButton) {
-                                        GatheringsIO.DeleteGatheringByName(mProposedGathering,
-                                                getActivity().getFilesDir(), getActivity());
-                                        SaveGathering(mProposedGathering);
-                                    }
-                                })
-                                .setNegativeButton(R.string.dialog_cancel, new DialogInterface.OnClickListener() {
-                                    public void onClick(DialogInterface dialog, int whichButton) {
-                                    }
-                                })
-                                .create();
-                    }
-                    case DIALOG_DELETE_GATHERING: {
-						/* Show all gatherings, and delete the selected one */
-                        if (GatheringsIO.getNumberOfGatherings(getActivity().getFilesDir()) <= 0) {
-                            ToastWrapper.makeText(this.getActivity(), R.string.gathering_toast_no_gatherings,
-                                    ToastWrapper.LENGTH_LONG).show();
-                            return DontShowDialog();
-                        }
-
-                        ArrayList<String> dGatherings = GatheringsIO.getGatheringFileList(getActivity().getFilesDir());
-                        final String[] dfGatherings = dGatherings.toArray(new String[dGatherings.size()]);
-                        final String[] dProperNames = new String[dGatherings.size()];
-                        for (int idx = 0; idx < dGatherings.size(); idx++) {
-                            dProperNames[idx] = GatheringsIO.ReadGatheringNameFromXML(dGatherings.get(idx),
-                                    getActivity().getFilesDir());
-                        }
-
-                        return new AlertDialogPro.Builder(getActivity())
-                                .setTitle(R.string.gathering_delete)
-                                .setItems(dProperNames, new DialogInterface.OnClickListener() {
-                                    public void onClick(DialogInterface dialogInterface, int item) {
-                                        GatheringsIO.DeleteGathering(dfGatherings[item], getActivity().getFilesDir(),
-                                                getActivity());
-                                        getActivity().supportInvalidateOptionsMenu();
-                                    }
-                                }).create();
-                    }
-                    case DIALOG_REMOVE_PLAYER: {
-						/* Remove a player from the Gathering and linear layout */
-                        ArrayList<String> names = new ArrayList<>();
-                        for (int idx = 0; idx < mLinearLayout.getChildCount(); idx++) {
-                            View player = mLinearLayout.getChildAt(idx);
-                            assert player != null;
-                            EditText customName = (EditText) player.findViewById(R.id.custom_name);
-                            assert customName.getText() != null;
-                            names.add(customName.getText().toString().trim());
-                        }
-                        final String[] aNames = names.toArray(new String[names.size()]);
-
-                        if (names.size() == 0) {
-                            return DontShowDialog();
-                        }
-
-                        return new AlertDialogPro.Builder(getActivity())
-                                .setTitle(R.string.gathering_remove_player)
-                                .setItems(aNames, new DialogInterface.OnClickListener() {
-                                    public void onClick(DialogInterface dialogInterface, int item) {
-                                        mLinearLayout.removeViewAt(item);
-                                        getActivity().supportInvalidateOptionsMenu();
-                                    }
-                                })
-                                .create();
-                    }
-                    case DIALOG_LOAD_GATHERING: {
-						/* Load a gathering, if there is a gathering to load */
-                        if (GatheringsIO.getNumberOfGatherings(getActivity().getFilesDir()) <= 0) {
-                            ToastWrapper.makeText(this.getActivity(), R.string.gathering_toast_no_gatherings,
-                                    ToastWrapper.LENGTH_LONG).show();
-                            return DontShowDialog();
-                        }
-
-                        ArrayList<String> gatherings = GatheringsIO.getGatheringFileList(getActivity().getFilesDir());
-                        final String[] fGatherings = gatherings.toArray(new String[gatherings.size()]);
-                        final String[] properNames = new String[gatherings.size()];
-                        for (int idx = 0; idx < gatherings.size(); idx++) {
-                            properNames[idx] = GatheringsIO.ReadGatheringNameFromXML(gatherings.get(idx),
-                                    getActivity().getFilesDir());
-                        }
-
-                        return new AlertDialogPro.Builder(getActivity())
-                                .setTitle(R.string.gathering_load)
-                                .setItems(properNames, new DialogInterface.OnClickListener() {
-                                    public void onClick(DialogInterface dialogInterface, int item) {
-                                        mLinearLayout.removeAllViews();
-                                        mLargestPlayerNumber = 0;
-                                        Gathering gathering = GatheringsIO.ReadGatheringXML(fGatherings[item],
-                                                getActivity().getFilesDir());
-
-                                        mCurrentGatheringName = GatheringsIO.ReadGatheringNameFromXML(fGatherings[item],
-                                                getActivity().getFilesDir());
-                                        mDisplayModeSpinner.setSelection(gathering.mDisplayMode);
-                                        ArrayList<GatheringsPlayerData> players = gathering.mPlayerList;
-                                        for (GatheringsPlayerData player : players) {
-                                            AddPlayerRow(player);
-                                        }
-                                        getActivity().supportInvalidateOptionsMenu();
-                                    }
-                                }).create();
-                    }
-                    default: {
-                        savedInstanceState.putInt("id", id);
-                        return super.onCreateDialog(savedInstanceState);
-                    }
-                }
-            }
-        };
-        newFragment.show(getFragmentManager(), FamiliarActivity.DIALOG_TAG);
+        /* Create and show the dialog. */
+        GatheringsDialogFragment newFragment = new GatheringsDialogFragment();
+        Bundle arguments = new Bundle();
+        arguments.putInt(FamiliarDialogFragment.ID_KEY, id);
+        newFragment.setArguments(arguments);
+        newFragment.show(getParentFragmentManager(), FamiliarActivity.DIALOG_TAG);
     }
 
     /**
@@ -385,35 +198,34 @@ public class GatheringsFragment extends FamiliarFragment {
      */
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-            case R.id.delete_gathering:
-                showDialog(DIALOG_DELETE_GATHERING);
-                return true;
-            case R.id.remove_player:
-                showDialog(DIALOG_REMOVE_PLAYER);
-                return true;
-            case R.id.add_player:
-				/* Use the correct default life for commander mode */
-                switch (mDisplayModeSpinner.getSelectedItemPosition()) {
-                    case 1:
-                    case 0: {
-                        AddPlayerRow(new GatheringsPlayerData(null, LifeCounterFragment.DEFAULT_LIFE));
-                        break;
-                    }
-                    case 2: {
-                        AddPlayerRow(new GatheringsPlayerData(null, LifeCounterFragment.DEFAULT_LIFE_COMMANDER));
-                        break;
-                    }
+        if (item.getItemId() == R.id.delete_gathering) {
+            showDialog(GatheringsDialogFragment.DIALOG_DELETE_GATHERING);
+            return true;
+        } else if (item.getItemId() == R.id.remove_player) {
+            showDialog(GatheringsDialogFragment.DIALOG_REMOVE_PLAYER);
+            return true;
+        } else if (item.getItemId() == R.id.add_player) {
+            /* Use the correct default life for commander mode */
+            switch (mDisplayModeSpinner.getSelectedItemPosition()) {
+                case 1:
+                case 0: {
+                    AddPlayerRow(new GatheringsPlayerData(null, LifeCounterFragment.DEFAULT_LIFE));
+                    break;
                 }
-                return true;
-            case R.id.load_gathering:
-                showDialog(DIALOG_LOAD_GATHERING);
-                return true;
-            case R.id.save_gathering:
-                showDialog(DIALOG_SAVE_GATHERING);
-                return true;
-            default:
-                return super.onOptionsItemSelected(item);
+                case 2: {
+                    AddPlayerRow(new GatheringsPlayerData(null, LifeCounterFragment.DEFAULT_LIFE_COMMANDER));
+                    break;
+                }
+            }
+            return true;
+        } else if (item.getItemId() == R.id.load_gathering) {
+            showDialog(GatheringsDialogFragment.DIALOG_LOAD_GATHERING);
+            return true;
+        } else if (item.getItemId() == R.id.save_gathering) {
+            showDialog(GatheringsDialogFragment.DIALOG_SAVE_GATHERING);
+            return true;
+        } else {
+            return super.onOptionsItemSelected(item);
         }
     }
 
@@ -424,7 +236,7 @@ public class GatheringsFragment extends FamiliarFragment {
      * @param inflater The inflater to use to inflate the menu
      */
     @Override
-    public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
+    public void onCreateOptionsMenu(@NonNull Menu menu, @NonNull MenuInflater inflater) {
         super.onCreateOptionsMenu(menu, inflater);
         inflater.inflate(R.menu.gathering_menu, menu);
     }
@@ -434,9 +246,9 @@ public class GatheringsFragment extends FamiliarFragment {
      *
      * @param _gatheringName The name of the gathering to save
      */
-    private void SaveGathering(String _gatheringName) {
+    public void SaveGathering(String _gatheringName) {
         if (_gatheringName.length() <= 0) {
-            ToastWrapper.makeText(getActivity(), R.string.gathering_toast_no_name, ToastWrapper.LENGTH_LONG).show();
+            SnackbarWrapper.makeAndShowText(getActivity(), R.string.gathering_toast_no_name, SnackbarWrapper.LENGTH_LONG);
             return;
         }
 
@@ -448,11 +260,11 @@ public class GatheringsFragment extends FamiliarFragment {
             View player = mLinearLayout.getChildAt(idx);
             assert player != null;
 
-            EditText customName = (EditText) player.findViewById(R.id.custom_name);
+            EditText customName = player.findViewById(R.id.custom_name);
             assert customName.getText() != null;
             String name = customName.getText().toString().trim();
 
-            EditText startingLife = (EditText) player.findViewById(R.id.starting_life);
+            EditText startingLife = player.findViewById(R.id.starting_life);
             assert startingLife.getText() != null;
             int life = Integer.parseInt(startingLife.getText().toString());
 
@@ -460,8 +272,8 @@ public class GatheringsFragment extends FamiliarFragment {
         }
 
         GatheringsIO.writeGatheringXML(players, _gatheringName, mDisplayModeSpinner.getSelectedItemPosition(),
-                getActivity().getFilesDir());
-        getActivity().supportInvalidateOptionsMenu();
+                requireActivity().getFilesDir());
+        getActivity().invalidateOptionsMenu();
     }
 
     /**
@@ -469,21 +281,21 @@ public class GatheringsFragment extends FamiliarFragment {
      *
      * @return true if there are empty fields, false otherwise
      */
-    private boolean AreAnyFieldsEmpty() {
+    public boolean AreAnyFieldsEmpty() {
         int playersCount = mLinearLayout.getChildCount();
 
         for (int idx = 0; idx < playersCount; idx++) {
             View player = mLinearLayout.getChildAt(idx);
 
             assert player != null;
-            EditText customName = (EditText) player.findViewById(R.id.custom_name);
+            EditText customName = player.findViewById(R.id.custom_name);
             assert customName.getText() != null;
             String name = customName.getText().toString().trim();
             if (name.trim().length() == 0) {
                 return true;
             }
 
-            EditText startingLife = (EditText) player.findViewById(R.id.starting_life);
+            EditText startingLife = player.findViewById(R.id.starting_life);
 
             assert startingLife.getText() != null;
             if (startingLife.getText().toString().trim().length() == 0) {
@@ -498,30 +310,30 @@ public class GatheringsFragment extends FamiliarFragment {
      *
      * @param _player The GatheringsPlayerData with a name and starting life
      */
-    private void AddPlayerRow(GatheringsPlayerData _player) {
+    public void AddPlayerRow(GatheringsPlayerData _player) {
 
         if (_player.mName == null) {
             mLargestPlayerNumber++;
             _player.mName = getString(R.string.life_counter_default_name) + " " + mLargestPlayerNumber;
         } else {
             try {
-                String nameParts[] = _player.mName.split(" ");
+                String[] nameParts = _player.mName.split(" ");
                 int number = Integer.parseInt(nameParts[nameParts.length - 1]);
                 if (number > mLargestPlayerNumber) {
                     mLargestPlayerNumber = number;
                 }
             } catch (NumberFormatException e) {
-				/* eat it */
+                /* eat it */
             }
         }
-        View newView = getLayoutInflater(null).inflate(R.layout.gathering_create_player_row, null, false);
+        View newView = getLayoutInflater().inflate(R.layout.gathering_create_player_row, mLinearLayout, false);
         assert newView != null;
 
         ((TextView) newView.findViewById(R.id.custom_name)).setText(_player.mName);
         ((TextView) newView.findViewById(R.id.starting_life)).setText(String.valueOf(_player.mStartingLife));
 
         mLinearLayout.addView(newView);
-        getActivity().supportInvalidateOptionsMenu();
+        requireActivity().invalidateOptionsMenu();
     }
 
     /**
@@ -530,7 +342,7 @@ public class GatheringsFragment extends FamiliarFragment {
      * @param menu The menu to show or hide the "announce life totals" button in.
      */
     @Override
-    public void onPrepareOptionsMenu(Menu menu) {
+    public void onPrepareOptionsMenu(@NonNull Menu menu) {
         super.onPrepareOptionsMenu(menu);
 
         MenuItem removePlayer = menu.findItem(R.id.remove_player);
@@ -541,18 +353,14 @@ public class GatheringsFragment extends FamiliarFragment {
         assert loadGathering != null;
 
         try {
-            if (mLinearLayout.getChildCount() == 0 || !getFamiliarActivity().mIsMenuVisible) {
-                removePlayer.setVisible(false);
-            } else {
-                removePlayer.setVisible(true);
-            }
+            removePlayer.setVisible(mLinearLayout.getChildCount() != 0 && getFamiliarActivity().mIsMenuVisible);
         } catch (NullPointerException e) {
-			/* the if () statement throwing a NullPointerException for some users. I don't know which part was null,
-			or why, but this catches it well enough */
+            /* the if () statement throwing a NullPointerException for some users. I don't know which part was null,
+            or why, but this catches it well enough */
             removePlayer.setVisible(true);
         }
 
-        if (GatheringsIO.getNumberOfGatherings(getActivity().getFilesDir()) <= 0 ||
+        if (GatheringsIO.getNumberOfGatherings(requireActivity().getFilesDir()) <= 0 ||
                 getFamiliarActivity() == null || !getFamiliarActivity().mIsMenuVisible) {
             deleteGathering.setVisible(false);
             loadGathering.setVisible(false);
